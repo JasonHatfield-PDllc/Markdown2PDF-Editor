@@ -4,11 +4,14 @@ import { fileURLToPath } from 'url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-/** GitHub Project Page URL: https://<user>.github.io/<repo>/ — assets must load under /REPO/. */
-const REPO_BASE = '/Markdown2PDF-Editor/';
-
+/**
+ * Relative base works for both:
+ * - Project Pages: https://<user>.github.io/<repo>/ (assets resolve under /repo/)
+ * - Custom domain: https://sub.example.com/ (assets resolve under /)
+ * Absolute /repo/ breaks on custom-domain root; absolute / breaks github.io/repo/ unless you split builds.
+ */
 export default defineConfig({
-  base: REPO_BASE,
+  base: './',
   root: '.',
   build: {
     outDir: 'dist',

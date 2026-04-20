@@ -50,55 +50,69 @@ Use your real GitHub username and repo name in the remote URL.
 7. After a successful run, **Settings** → **Pages** will show a URL like:
    - `https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/`
 
-**Custom domain (next section) is recommended** so the site loads at `https://tools.pragmaticdisruptor.com` with **`base: '/'`** and no path quirks.
+**Custom domain (next section) is recommended** so the site loads at e.g. `https://markdown2pdf-editor.pragmaticdisruptor.com` without path quirks.
 
 ### 4. `github.io` project URL and `base` (required for styling)
 
-If you **do not** use a custom domain, GitHub serves the app at:
+GitHub serves a **project** site at:
 
 `https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/`
 
-Vite must use **`base: '/YOUR_REPO_NAME/'`** (with slashes) or CSS/JS load from `/assets/...` and **404** — the page looks unstyled (“broken”). This repo sets `REPO_BASE` in `vite.config.js` to **`/Markdown2PDF-Editor/`**; if you **rename the GitHub repo**, update that string to match.
+A **custom domain** for that same project is served at the **root** of the subdomain (`https://markdown2pdf-editor.pragmaticdisruptor.com/`). Those two URLs use different **path prefixes** (`/REPO/` vs `/`), so a single absolute `base` cannot fit both.
 
-When you add a **custom domain** (Part B), change `base` to **`'/'`** in `vite.config.js`, commit, and redeploy.
+This repo uses **`base: './'`** in `vite.config.js` so the built HTML references **`./assets/...`**. Browsers resolve that relative to the current page, so the same deploy works for **both** `github.io/.../REPO/` **and** the custom domain. Run `npm run build` and deploy the resulting `dist/` (the GitHub Actions workflow does this on every push to `main`).
 
 ---
 
 ## Part B — Custom subdomain (recommended)
 
-Example: **`tools.pragmaticdisruptor.com`** → your GitHub Pages site.
+Example: **`markdown2pdf-editor.pragmaticdisruptor.com`** → your GitHub Pages site.
+
+### 0. Same build for custom domain and `github.io`
+
+`vite.config.js` uses **`base: './'`** so you do **not** need a separate “custom domain” build. Push to `main`, wait for Actions, then open **`https://markdown2pdf-editor.pragmaticdisruptor.com/`** (root of the subdomain). Avoid bookmarking **`.../Markdown2PDF-Editor/`** on the custom domain—that path is not part of the Pages layout and will break asset URLs if old HTML is cached.
 
 ### 1. GitHub: add the custom domain
 
 1. Repo → **Settings** → **Pages**.
-2. **Custom domain** → enter `tools.pragmaticdisruptor.com` (or your chosen subdomain).
-3. Save. Enable **Enforce HTTPS** when GitHub allows it (after DNS propagates).
-4. GitHub may create a `CNAME` file or show the exact DNS records required—follow what the UI shows (usually a **CNAME**).
+2. **Custom domain** → enter `markdown2pdf-editor.pragmaticdisruptor.com` (your chosen subdomain).
+3. Save. GitHub shows the exact **DNS** requirements—follow that page (usually a **CNAME**).
 
-Typical setup:
+Typical setup for a **subdomain**:
 
 | Type | Host / Name | Value / Target |
-|------|----------------|----------------|
-| CNAME | `tools` | `YOUR_USERNAME.github.io` |
+|------|-------------|----------------|
+| CNAME | `markdown2pdf-editor` | `jasonhatfield-pdllc.github.io` |
 
-**Important:** Use the **GitHub Pages hostname** shown in your repo’s Pages settings (often `username.github.io` for user/organization sites; project pages may differ slightly—**follow GitHub’s UI**).
+Use the **target** GitHub displays (must match your account). Project Pages use **`USERNAME.github.io`** as the CNAME target—not the repo name.
 
-### 2. Wix: add the DNS record
+4. When DNS is valid, enable **Enforce HTTPS**.
 
-Your domain uses **Wix nameservers** (`ns0.wixdns.net` / `ns1.wixdns.net`), so DNS is edited **in Wix**, not at Whois (unless you change nameservers).
+### 2. Where to create the subdomain (DNS)
 
-1. Log in to [Wix](https://www.wix.com/) → your site dashboard.
-2. Open **Domains** (or **Premium Subscriptions** → **Domains**).
-3. Select **pragmaticdisruptor.com** → **Manage** → look for **DNS records**, **Advanced DNS**, or **Manage DNS records** (wording varies).
-4. Add a **CNAME** record:
-   - **Host name:** `tools` (or `@` is wrong for subdomain—use the subdomain label only).
-   - **Points to / Target:** `YOUR_USERNAME.github.io` (exactly as GitHub shows).
-5. Save. Propagation can take **15 minutes to 48 hours** (often under an hour).
+The subdomain is **not** “created” in GitHub—you add a **DNS record** wherever **pragmaticdisruptor.com** is hosted in DNS.
+
+- **Wix shows “Managed by third party” / “Connected by DNS”**  
+  The domain may still be registered at **Whois.com** (or elsewhere), and DNS might live at the **registrar** or at **Wix**, depending on **nameservers**.
+
+**Find the right place:**
+
+1. In Wix: **Domains** → **pragmaticdisruptor.com** → look for **Manage DNS records** / **Advanced DNS**. If you can add records there, add the CNAME here.
+2. If Wix says DNS is at a **third party**, open **Whois.com** (or whoever you bought the domain from) → **DNS management** for pragmaticdisruptor.com.
+3. Optional check (PowerShell): `nslookup -type=NS pragmaticdisruptor.com` — if you see `wixdns.net`, Wix is authoritative; if you see registrar NS, use the registrar’s DNS panel.
+
+**Add the CNAME:**
+
+- **Host / Name:** `markdown2pdf-editor` (only the left part; not the full domain).
+- **Points to / Target:** `jasonhatfield-pdllc.github.io` (or exactly what GitHub’s Pages settings show).
+- **TTL:** default is fine.
+
+Propagation is often **15 minutes–48 hours**.
 
 ### 3. Verify
 
-- `https://tools.pragmaticdisruptor.com` loads your app.
-- GitHub → Settings → Pages shows **DNS check** valid (green).
+- `https://markdown2pdf-editor.pragmaticdisruptor.com` loads your app (styled).
+- GitHub → **Settings** → **Pages** shows the custom domain **Verified** and **Enforce HTTPS** available.
 
 ---
 
@@ -107,7 +121,7 @@ Your domain uses **Wix nameservers** (`ns0.wixdns.net` / `ns1.wixdns.net`), so D
 1. **Wix Editor** → open [pragmaticdisruptor.com](https://www.pragmaticdisruptor.com/).
 2. **Menus & Pages** (or header menu).
 3. Add a **menu item** or **button**, e.g. “Markdown PDF Editor” or under **Guides**.
-4. Link type: **Web address** → `https://tools.pragmaticdisruptor.com` (use HTTPS).
+4. Link type: **Web address** → `https://markdown2pdf-editor.pragmaticdisruptor.com` (HTTPS).
 5. Publish the site.
 
 ---
