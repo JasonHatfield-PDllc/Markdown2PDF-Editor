@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>Markdown → PDF Editor by Pragmatic Disruptor, LLC.</title>
+  </head>
+  <body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+    <a
+      href="#main-preview"
+      class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded focus:bg-white focus:px-4 focus:py-2 focus:shadow focus:outline focus:outline-2 focus:outline-pd-primary"
+    >
+      Skip to preview
+    </a>
+
+    <!-- Viewport-height shell: only the preview pane scrolls; controls stay visible. -->
+    <div
+      id="app-shell"
+      class="flex h-[100dvh] min-h-0 flex-col overflow-hidden lg:flex-row"
+    >
+      <!-- Controls: hidden when printing -->
+      <aside
+        id="sidebar"
+        class="no-print flex w-full shrink-0 flex-col border-b border-slate-200 bg-white min-h-0 max-h-[42vh] overflow-y-auto lg:max-h-none lg:h-full lg:w-[var(--m2pdf-sidebar,22rem)] lg:min-w-[16rem] lg:max-w-[min(65vw,52rem)] lg:shrink-0 lg:overflow-hidden lg:border-b-0 lg:border-r"
+        aria-label="Document and branding controls"
+      >
+        <div class="shrink-0 border-b border-slate-100 px-4 py-3">
+          <h1 class="text-lg font-semibold leading-snug text-slate-800">Markdown → PDF Editor</h1>
+          <p class="mt-0.5 text-xs text-slate-500">by Pragmatic Disruptor, LLC.</p>
+          <p class="mt-1 text-xs text-slate-500">
+            Preview matches print. Use Edge: Print → Save as PDF.
+          </p>
+        </div>
+
+        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 lg:max-h-none">
+          <section class="space-y-2">
+            <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Source</h2>
+            <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
+              <div class="flex min-w-0 flex-1 flex-wrap gap-2">
+                <button
+                  id="btn-open-md"
+                  type="button"
+                  class="inline-flex cursor-pointer items-center rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  Open .md
+                </button>
+                <input
+                  id="file-md"
+                  type="file"
+                  accept=".md,.markdown,text/markdown,text/plain"
+                  class="sr-only"
+                  aria-hidden="true"
+                  tabindex="-1"
+                />
+                <button
+                  id="btn-clear"
+                  type="button"
+                  class="rounded border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  Clear
+                </button>
+                <button
+                  id="btn-save-md"
+                  type="button"
+                  disabled
+                  title="Overwrite the file you opened or last saved (Chrome/Edge). Otherwise use Save As."
+                  class="rounded border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Save
+                </button>
+                <button
+                  id="btn-save-as-md"
+                  type="button"
+                  title="Choose filename and save Markdown source only"
+                  class="rounded border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  Save As…
+                </button>
+              </div>
+              <button
+                id="btn-print"
+                type="button"
+                class="shrink-0 rounded bg-pd-primary px-4 py-2 text-sm font-medium text-white hover:bg-pd-primary-hover"
+              >
+                Print / Save as PDF
+              </button>
+            </div>
+
+            <div
+              id="md-toolbar"
+              class="no-print flex flex-wrap items-center gap-1 border-b border-slate-100 pb-2"
+              role="toolbar"
+              aria-label="Insert Markdown"
+            >
+              <span class="mr-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Insert</span>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-bold text-slate-800 hover:bg-slate-50"
+                data-md-insert="bold"
+                title="Bold (**text**)"
+              >
+                B
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs italic text-slate-800 hover:bg-slate-50"
+                data-md-insert="italic"
+                title="Italic (*text*)"
+              >
+                I
+              </button>
+              <span class="mx-0.5 text-slate-300" aria-hidden="true">|</span>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="h1"
+                title="Heading 1 (# )"
+              >
+                H1
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="h2"
+                title="Heading 2 (## )"
+              >
+                H2
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="h3"
+                title="Heading 3 (### )"
+              >
+                H3
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="p"
+                title="Paragraph (remove heading #)"
+              >
+                P
+              </button>
+              <span class="mx-0.5 text-slate-300" aria-hidden="true">|</span>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="ul"
+                title="Bullet list (- )"
+              >
+                •
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="ol"
+                title="Numbered list (1. 2. …)"
+              >
+                1.
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="link"
+                title="Link [text](https://)"
+              >
+                Link
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="quote"
+                title="Blockquote (> )"
+              >
+                &gt;
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="code"
+                title="Inline code (`text`)"
+              >
+                `
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="hr"
+                title="Horizontal rule (---)"
+              >
+                —
+              </button>
+            </div>
+
+            <label class="block text-xs text-slate-600" for="textarea-md">Markdown (edit or paste)</label>
+            <textarea
+              id="textarea-md"
+              class="h-40 w-full resize-y rounded border border-slate-300 p-2 font-mono text-xs leading-relaxed"
+              placeholder="# Title&#10;&#10;Paste PragmaticSpeak output or open a .md file."
+              aria-describedby="md-input-warning"
+              spellcheck="false"
+            ></textarea>
+            <p id="md-input-warning" class="hidden text-xs text-amber-700"></p>
+          </section>
+
+          <section class="space-y-2" aria-labelledby="page-guide-heading">
+            <h2 id="page-guide-heading" class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Page guides
+            </h2>
+            <p id="page-guide-hint" class="text-[11px] leading-snug text-slate-400">
+              Horizontal bands in the preview only — approximate page length. PDF breaks depend on your print dialog (paper, margins, scale).
+            </p>
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                <input
+                  id="page-guide-enabled"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-slate-300 text-pd-primary focus:ring-pd-primary"
+                  aria-describedby="page-guide-hint"
+                />
+                Show guides
+              </label>
+              <label class="inline-flex items-center gap-2 text-sm text-slate-600" for="page-guide-paper">
+                <span class="text-xs text-slate-500">Paper</span>
+                <select
+                  id="page-guide-paper"
+                  class="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+                >
+                  <option value="letter">US Letter</option>
+                  <option value="a4">A4</option>
+                  <option value="legal">US Legal</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section class="space-y-3">
+            <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Logo</h2>
+
+            <fieldset class="space-y-1.5 border-0 p-0">
+              <legend class="text-xs font-medium text-slate-600">Apply URL or upload to</legend>
+              <div class="flex flex-wrap gap-4" role="radiogroup" aria-label="Logo image target">
+                <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                  <input
+                    id="logo-slot-header"
+                    type="radio"
+                    name="logo-slot"
+                    value="header"
+                    checked
+                    class="h-4 w-4 border-slate-300 text-pd-primary focus:ring-pd-primary"
+                  />
+                  Header
+                </label>
+                <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                  <input
+                    id="logo-slot-footer"
+                    type="radio"
+                    name="logo-slot"
+                    value="footer"
+                    class="h-4 w-4 border-slate-300 text-pd-primary focus:ring-pd-primary"
+                  />
+                  Footer
+                </label>
+              </div>
+            </fieldset>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+              <div class="min-w-0 flex-1 space-y-2">
+                <label class="block text-xs text-slate-600" for="input-logo-url"
+                  >Image URL (optional, saved in this browser)</label
+                >
+                <input
+                  id="input-logo-url"
+                  type="url"
+                  class="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  placeholder="https://…/logo.png"
+                  autocomplete="off"
+                  list="logo-recent-datalist"
+                />
+                <datalist id="logo-recent-datalist"></datalist>
+                <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                  <span
+                    class="rounded border border-slate-300 bg-slate-50 px-2 py-1 text-xs font-medium"
+                    >Upload</span
+                  >
+                  <input id="file-logo" type="file" accept="image/*" class="sr-only" />
+                </label>
+                <p id="logo-persist-hint" class="text-xs text-slate-500">
+                  Optional: image URL or upload. Stored in this browser until you remove it or clear site data.
+                </p>
+                <button
+                  id="btn-remove-logo"
+                  type="button"
+                  class="text-xs text-slate-500 underline hover:text-slate-700"
+                >
+                  Remove logo preview
+                </button>
+              </div>
+
+              <div class="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:max-w-[20rem]">
+                <div class="space-y-1">
+                  <label class="block text-xs font-medium text-slate-600" for="select-logo-header-placement"
+                    >Header logo placement</label
+                  >
+                  <select
+                    id="select-logo-header-placement"
+                    class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800"
+                  >
+                    <option value="left">Header — Left adjust</option>
+                    <option value="center">Header — Center aligned with page</option>
+                    <option value="right">Header — Right adjust</option>
+                    <option value="none">Header — None</option>
+                  </select>
+                  <div class="flex flex-wrap items-center gap-2 pt-0.5">
+                    <label class="text-xs text-slate-500" for="input-logo-header-scale">Header logo scale</label>
+                    <input
+                      id="input-logo-header-scale"
+                      type="number"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value="100"
+                      class="w-16 rounded border border-slate-300 px-1.5 py-1 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      aria-describedby="logo-scale-hint"
+                    />
+                    <span class="text-xs text-slate-400">%</span>
+                  </div>
+                </div>
+
+                <div class="space-y-1">
+                  <label class="block text-xs font-medium text-slate-600" for="select-logo-footer-placement"
+                    >Footer logo placement</label
+                  >
+                  <select
+                    id="select-logo-footer-placement"
+                    class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800"
+                  >
+                    <option value="left">Footer — Left adjust</option>
+                    <option value="center">Footer — Center aligned with page</option>
+                    <option value="right">Footer — Right adjust</option>
+                    <option value="none">Footer — None</option>
+                  </select>
+                  <div class="flex flex-wrap items-center gap-2 pt-0.5">
+                    <label class="text-xs text-slate-500" for="input-logo-footer-scale">Footer logo scale</label>
+                    <input
+                      id="input-logo-footer-scale"
+                      type="number"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value="100"
+                      class="w-16 rounded border border-slate-300 px-1.5 py-1 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      aria-describedby="logo-scale-hint"
+                    />
+                    <span class="text-xs text-slate-400">%</span>
+                  </div>
+                </div>
+                <p id="logo-scale-hint" class="text-[11px] leading-snug text-slate-400">
+                  Scale applies to header/footer when that placement is not None. Footer + disclaimer side‑by‑side: logo column is at most ~52% so text keeps room.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="space-y-2">
+            <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Print footer</h2>
+            <label class="block text-xs text-slate-600" for="textarea-disclaimer"
+              >Disclaimer / legal text (optional)</label
+            >
+            <textarea
+              id="textarea-disclaimer"
+              class="h-24 w-full resize-y rounded border border-slate-300 p-2 text-sm"
+              placeholder="Shown in the page footer. Pairs with the footer logo: side‑by‑side for left/right placement; below the logo when footer logo is centered."
+            ></textarea>
+          </section>
+        </div>
+      </aside>
+
+      <!-- Draggable split (large screens only); width stored in localStorage -->
+      <div
+        id="sidebar-resize-handle"
+        class="no-print relative hidden shrink-0 select-none touch-none lg:block lg:w-3 lg:cursor-col-resize lg:bg-slate-200/60 lg:hover:bg-slate-300/70"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Drag to resize sidebar. Double-click to reset width."
+        title="Drag to resize sidebar. Double-click to reset."
+        tabindex="0"
+      >
+        <span
+          class="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-slate-400/90 lg:block"
+          aria-hidden="true"
+        ></span>
+      </div>
+
+      <!-- Preview + print root -->
+      <main id="main-preview" class="min-h-0 flex-1 overflow-y-auto bg-slate-200/80 p-4 lg:p-6" tabindex="-1">
+        <div
+          id="print-root"
+          class="relative mx-auto min-h-[calc(100vh-6rem)] min-w-0 max-w-3xl overflow-x-clip bg-white px-6 py-8 shadow-sm ring-1 ring-slate-200/80 print:shadow-none print:ring-0"
+        >
+          <div
+            id="page-guide-overlay"
+            class="pointer-events-none absolute inset-0 z-0 hidden print:hidden"
+            aria-hidden="true"
+          ></div>
+          <div class="relative z-[1] min-w-0">
+          <header id="brand-header" class="mb-6 hidden border-b border-slate-200 pb-4 print:mb-4">
+            <div id="brand-header-inner" class="flex w-full">
+              <img
+                id="brand-logo-header-img"
+                src=""
+                alt="Logo"
+                class="block max-h-48 max-w-full object-contain"
+              />
+            </div>
+          </header>
+
+          <article
+            id="md-preview"
+            class="prose prose-sm prose-slate max-w-none prose-headings:font-semibold prose-p:leading-snug prose-li:my-0.5 prose-pre:bg-slate-900 prose-pre:text-slate-100 prose-pre:whitespace-pre-wrap prose-pre:break-words prose-code:break-words"
+          >
+            <p class="text-slate-400">Open or paste Markdown to see the preview.</p>
+          </article>
+
+          <!-- Unified print footer: disclaimer + footer logo layout controlled in main.js -->
+          <section
+            id="print-footer-block"
+            class="m2pdf-print-footer mt-8 hidden border-t border-slate-200 pt-4 print:mt-8"
+          >
+            <div id="print-footer-layout" class="flex w-full min-w-0 items-start gap-4">
+              <div id="footer-logo-column" class="hidden min-w-0">
+                <div id="brand-footer-logo-inner" class="flex w-full min-w-0">
+                  <img
+                    id="brand-logo-footer-img"
+                    src=""
+                    alt="Logo"
+                    class="block h-auto max-h-48 w-full max-w-full object-contain"
+                  />
+                </div>
+              </div>
+              <div
+                id="disclaimer-footer"
+                class="min-w-0 flex-1 text-xs leading-relaxed text-slate-600"
+              ></div>
+            </div>
+          </section>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
