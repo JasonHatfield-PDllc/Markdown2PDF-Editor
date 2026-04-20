@@ -52,22 +52,15 @@ Use your real GitHub username and repo name in the remote URL.
 
 **Custom domain (next section) is recommended** so the site loads at `https://tools.pragmaticdisruptor.com` with **`base: '/'`** and no path quirks.
 
-### 4. Optional: default `github.io` URL without a custom domain
+### 4. `github.io` project URL and `base` (required for styling)
 
 If you **do not** use a custom domain, GitHub serves the app at:
 
 `https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/`
 
-Then Vite needs a **base path** of `/<REPO_NAME>/`. Set in `vite.config.js`:
+Vite must use **`base: '/YOUR_REPO_NAME/'`** (with slashes) or CSS/JS load from `/assets/...` and **404** — the page looks unstyled (“broken”). This repo sets `REPO_BASE` in `vite.config.js` to **`/Markdown2PDF-Editor/`**; if you **rename the GitHub repo**, update that string to match.
 
-```js
-export default defineConfig({
-  base: '/YOUR_REPO_NAME/',
-  // ...
-});
-```
-
-Redeploy. **If you use a custom subdomain on pragmaticdisruptor.com, leave `base` as `/` (default).**
+When you add a **custom domain** (Part B), change `base` to **`'/'`** in `vite.config.js`, commit, and redeploy.
 
 ---
 
