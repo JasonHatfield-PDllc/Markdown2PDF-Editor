@@ -1,0 +1,20 @@
+{
+  "name": "@m2pdf/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared Markdown → PDF logic for web and desktop (Phase 0 extract)",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./markdown": "./src/markdown.js",
+    "./pageGuide": "./src/pageGuide.js",
+    "./mdToolbar": "./src/mdToolbar.js",
+    "./print.css": "./src/print.css",
+    "./branding-keys": "./src/branding-keys.js"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.0",
+    "markdown-it-multimd-table": "^4.2.3"
+  }
+}
