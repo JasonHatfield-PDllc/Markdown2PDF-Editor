@@ -5,7 +5,8 @@
   "description": "Markdown → PDF Editor by Pragmatic Disruptor, LLC. — preview and print-to-PDF (Edge-first)",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "dev": "vite",
@@ -13,7 +14,10 @@
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "dev:desktop": "npm run dev -w markdown2pdf-desktop",
+    "build:desktop": "npm run build -w markdown2pdf-desktop",
+    "pack:desktop": "npm run pack -w markdown2pdf-desktop"
   },
   "dependencies": {
     "dompurify": "^3.2.4",
