@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Keep disclaimer + footer logo together when printing */
+.m2pdf-print-footer {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* Screen-only: repeating horizontal bands ≈ printable body height (see pageGuide.js + @page margins). */
+#print-root {
+  --m2pdf-guide-step: 900px;
+}
+
+#page-guide-overlay:not(.hidden) {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--m2pdf-guide-step) - 1.5px),
+    rgba(148, 163, 184, 0.38) calc(var(--m2pdf-guide-step) - 1.5px),
+    rgba(148, 163, 184, 0.38) var(--m2pdf-guide-step)
+  );
+}
+
+/* Prevent Markdown content from introducing horizontal clipping in preview/PDF. */
+#md-preview pre,
+#md-preview code {
+  overflow-wrap: anywhere;
+}
+
+#md-preview pre {
+  overflow-x: visible;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#md-preview table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+#md-preview th,
+#md-preview td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Default sidebar width; JS may override with --m2pdf-sidebar in px after drag. */
+#app-shell {
+  --m2pdf-sidebar: 22rem;
+}
+
+body.m2pdf-resizing,
+body.m2pdf-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+/*
+ * Print: hide app chrome; keep document shell.
+ * Edge / Chromium: prefer "Save as PDF" in the print dialog.
+ *
+ * Page X of Y — uses CSS page margin boxes (Chrome / Edge 131+). No browser
+ * “Headers and footers” toggle required. Firefox/Safari may omit until supported.
+ * @see https://developer.chrome.com/blog/print-margins
+ */
+@page {
+  margin: 16mm 14mm 22mm 14mm;
+  @bottom-center {
+    content: 'Page ' counter(page) ' of ' counter(pages);
+    font-size: 9pt;
+    line-height: 1.2;
+    color: #64748b;
+    font-family: ui-sans-serif, system-ui, sans-serif, 'Segoe UI', Roboto, Helvetica, Arial;
+    vertical-align: top;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  /* Undo viewport lock so long documents print in full. */
+  #app-shell {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  #main-preview {
+    overflow: visible !important;
+    background: white !important;
+    padding: 0 !important;
+  }
+
+  #print-root {
+    min-height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+}

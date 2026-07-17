@@ -1,0 +1,49 @@
+/* Print layout rules shared by web and future desktop renderer.
+ * Web app still sources print rules from src/main.css until rewired. */
+
+.m2pdf-print-footer {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+@page {
+  margin: 16mm 14mm 22mm 14mm;
+  @bottom-center {
+    content: 'Page ' counter(page) ' of ' counter(pages);
+    font-size: 9pt;
+    line-height: 1.2;
+    color: #64748b;
+    font-family: ui-sans-serif, system-ui, sans-serif, 'Segoe UI', Roboto, Helvetica, Arial;
+    vertical-align: top;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  #app-shell {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  #main-preview {
+    overflow: visible !important;
+    background: white !important;
+    padding: 0 !important;
+  }
+
+  #print-root {
+    min-height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+}
