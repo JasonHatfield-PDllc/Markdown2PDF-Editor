@@ -37,6 +37,9 @@ jobs:
         run: npm run build -w markdown2pdf-desktop
 
       - name: Package Windows installer
+        env:
+          # Unsigned CI builds — avoid winCodeSign symlink privilege failures on Windows runners.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run pack -w markdown2pdf-desktop
 
       - name: Upload Windows installer
