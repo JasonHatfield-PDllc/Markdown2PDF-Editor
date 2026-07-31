@@ -64,6 +64,7 @@ const el = {
   inputLogoFooterScale: document.getElementById('input-logo-footer-scale'),
   inputPrintTitle: document.getElementById('input-print-title'),
   selectPrintTitleLevel: document.getElementById('select-print-title-level'),
+  selectPrintTitleAlign: document.getElementById('select-print-title-align'),
   textareaDisclaimer: document.getElementById('textarea-disclaimer'),
   btnExportPdf: document.getElementById('btn-export-pdf'),
   printRoot: document.getElementById('print-root'),
@@ -435,6 +436,12 @@ const TITLE_LEVEL_CLASS = {
   p: 'text-base font-medium leading-snug text-slate-800',
 };
 
+const TITLE_ALIGN_JUSTIFY = {
+  left: 'justify-start',
+  center: 'justify-center',
+  right: 'justify-end',
+};
+
 /** `whitespace-pre-line` keeps line breaks from the textarea; long lines still wrap. */
 const DISCLAIMER_BODY_CLASS = 'text-xs leading-relaxed text-slate-600 whitespace-pre-line';
 
@@ -442,15 +449,20 @@ function readPrintTitleFromForm() {
   const levelRaw = el.selectPrintTitleLevel?.value ?? 'h1';
   const level =
     levelRaw === 'h2' || levelRaw === 'h3' || levelRaw === 'p' ? levelRaw : 'h1';
+  const alignRaw = el.selectPrintTitleAlign?.value ?? 'left';
+  const align =
+    alignRaw === 'center' || alignRaw === 'right' ? alignRaw : 'left';
   return {
     text: el.inputPrintTitle?.value ?? '',
     level: /** @type {'h1'|'h2'|'h3'|'p'} */ (level),
+    align: /** @type {'left'|'center'|'right'} */ (align),
   };
 }
 
 function applyPrintTitleToForm(settings) {
   if (el.inputPrintTitle) el.inputPrintTitle.value = settings.text ?? '';
   if (el.selectPrintTitleLevel) el.selectPrintTitleLevel.value = settings.level ?? 'h1';
+  if (el.selectPrintTitleAlign) el.selectPrintTitleAlign.value = settings.align ?? 'left';
 }
 
 /**
@@ -462,6 +474,9 @@ function applyLogoBranding() {
   const layout = readLogoLayoutFromForm();
   const titleSettings = readPrintTitleFromForm();
   const titleText = titleSettings.text.trim();
+  const titleAlign = titleSettings.align === 'center' || titleSettings.align === 'right'
+    ? titleSettings.align
+    : 'left';
   const showLogo = Boolean(srcH) && layout.headerPlacement !== 'none';
   const showTitle = Boolean(titleText);
   const showHeader = showLogo || showTitle;
@@ -522,29 +537,31 @@ function applyLogoBranding() {
   if (showLogo && showTitle && titleEl && logoCol) {
     inner.className = 'flex w-full min-w-0 items-center gap-4';
     titleEl.className = `min-w-0 flex-1 ${TITLE_LEVEL_CLASS[titleSettings.level] ?? TITLE_LEVEL_CLASS.h1}`;
+    titleEl.style.textAlign = titleAlign;
     if (hp === 'right') {
       titleEl.style.order = '1';
       logoCol.style.order = '2';
-      titleEl.style.textAlign = 'right';
       inner.className += ' justify-end';
     } else if (hp === 'center') {
       logoCol.style.order = '1';
       titleEl.style.order = '2';
       titleEl.style.flex = '0 1 auto';
       titleEl.className = `min-w-0 shrink ${TITLE_LEVEL_CLASS[titleSettings.level] ?? TITLE_LEVEL_CLASS.h1}`;
+      titleEl.style.textAlign = titleAlign;
       inner.className += ' justify-center';
     } else {
       logoCol.style.order = '1';
       titleEl.style.order = '2';
-      titleEl.style.textAlign = 'left';
       inner.className += ' justify-start';
     }
   } else if (showLogo && logoCol) {
     const hj = LOGO_JUSTIFY[hp] ?? 'justify-start';
     inner.className = `flex w-full min-w-0 items-center ${hj}`;
   } else if (showTitle && titleEl) {
-    inner.className = 'flex w-full min-w-0 items-center justify-start';
+    const tj = TITLE_ALIGN_JUSTIFY[titleAlign] ?? 'justify-start';
+    inner.className = `flex w-full min-w-0 items-center ${tj}`;
     titleEl.className = `min-w-0 w-full ${TITLE_LEVEL_CLASS[titleSettings.level] ?? TITLE_LEVEL_CLASS.h1}`;
+    titleEl.style.textAlign = titleAlign;
   }
 
   applyPrintFooterBlock();
@@ -938,6 +955,11 @@ el.inputPrintTitle?.addEventListener('input', () => {
 });
 
 el.selectPrintTitleLevel?.addEventListener('change', () => {
+  savePrintTitle(readPrintTitleFromForm());
+  applyLogoBranding();
+});
+
+el.selectPrintTitleAlign?.addEventListener('change', () => {
   savePrintTitle(readPrintTitleFromForm());
   applyLogoBranding();
 });

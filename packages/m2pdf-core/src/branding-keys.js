@@ -23,4 +23,5 @@ export const DEFAULT_LOGO_LAYOUT = {
 export const DEFAULT_PRINT_TITLE = {
   text: '',
   level: 'h1',
+  align: 'left',
 };

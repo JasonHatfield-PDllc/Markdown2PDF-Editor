@@ -77,9 +77,14 @@ export class AppPage {
     await this.page.waitForTimeout(BRANDING_SETTLE_MS);
   }
 
-  async setPrintTitle(text: string, level: 'h1' | 'h2' | 'h3' | 'p' = 'h1') {
+  async setPrintTitle(
+    text: string,
+    level: 'h1' | 'h2' | 'h3' | 'p' = 'h1',
+    align: 'left' | 'center' | 'right' = 'left',
+  ) {
     await this.printTitleInput.fill(text);
     await this.printTitleLevel.selectOption(level);
+    await this.page.getByLabel('Title placement').selectOption(align);
     await this.page.waitForTimeout(BRANDING_SETTLE_MS);
   }
 

@@ -336,13 +336,16 @@ const KEY_PRINT_TITLE = 'm2pdf_print_title_v1';
 
 /** @typedef {'h1' | 'h2' | 'h3' | 'p'} PrintTitleLevel */
 
+/** @typedef {'left' | 'center' | 'right'} PrintTitleAlign */
+
 /**
- * @typedef {{ text: string, level: PrintTitleLevel }} PrintTitleSettings
+ * @typedef {{ text: string, level: PrintTitleLevel, align: PrintTitleAlign }} PrintTitleSettings
  */
 
 export const DEFAULT_PRINT_TITLE = {
   text: '',
   level: /** @type {PrintTitleLevel} */ ('h1'),
+  align: /** @type {PrintTitleAlign} */ ('left'),
 };
 
 /** @param {unknown} p @returns {PrintTitleSettings} */
@@ -353,6 +356,9 @@ function normalizePrintTitle(p) {
     if (typeof o.text === 'string') out.text = o.text;
     if (o.level === 'h1' || o.level === 'h2' || o.level === 'h3' || o.level === 'p') {
       out.level = o.level;
+    }
+    if (o.align === 'left' || o.align === 'center' || o.align === 'right') {
+      out.align = o.align;
     }
   }
   return out;

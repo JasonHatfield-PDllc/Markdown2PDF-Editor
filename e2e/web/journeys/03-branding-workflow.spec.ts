@@ -90,6 +90,16 @@ test.describe('Journey: branded document', () => {
     await expect(app.brandHeaderTitle).toContainText('Board Packet');
     await expect(app.headerLogoColumn).toBeHidden();
 
+    await page.getByLabel('Title placement').selectOption('center');
+    await page.waitForTimeout(300);
+    await expect(app.brandHeaderTitle).toHaveCSS('text-align', 'center');
+    await page.getByLabel('Title placement').selectOption('right');
+    await page.waitForTimeout(300);
+    await expect(app.brandHeaderTitle).toHaveCSS('text-align', 'right');
+    await page.getByLabel('Title placement').selectOption('left');
+    await page.waitForTimeout(300);
+    await expect(app.brandHeaderTitle).toHaveCSS('text-align', 'left');
+
     const uploadInput = page.locator('#file-logo');
     await uploadInput.setInputFiles(logoFixture);
     await page.waitForTimeout(500);
