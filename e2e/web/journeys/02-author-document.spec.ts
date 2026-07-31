@@ -38,4 +38,21 @@ test.describe('Journey: author a document', () => {
     await expect(app.disclaimerTextarea).toHaveValue('Confidential — internal use only.');
     await expect(app.disclaimerFooter).toContainText('Confidential — internal use only.');
   });
+
+  test('toolbar Table inserts a pipe table; Indent adds leading spaces', async ({ page }) => {
+    const app = new AppPage(page);
+    await app.goto();
+
+    await app.clickToolbarInsert('Table');
+    await expect(app.markdownTextarea).toHaveValue(/\| Header 1 \| Header 2 \| Header 3 \|/);
+    await expect(app.markdownTextarea).toHaveValue(/\| --- \| --- \| --- \|/);
+    await expect(app.preview.locator('table')).toHaveCount(1);
+
+    await app.markdownTextarea.fill('Nested item');
+    await app.selectMarkdownRange(0, 11);
+    await app.clickToolbarInsert('Indent');
+    await expect(app.markdownTextarea).toHaveValue('  Nested item');
+    await app.clickToolbarInsert('Outdent');
+    await expect(app.markdownTextarea).toHaveValue('Nested item');
+  });
 });

@@ -11,11 +11,15 @@ export class AppPage {
 
   readonly markdownTextarea: Locator;
   readonly disclaimerTextarea: Locator;
+  readonly printTitleInput: Locator;
+  readonly printTitleLevel: Locator;
   readonly preview: Locator;
   readonly printRoot: Locator;
   readonly printFooterBlock: Locator;
   readonly disclaimerFooter: Locator;
   readonly brandHeader: Locator;
+  readonly headerLogoColumn: Locator;
+  readonly brandHeaderTitle: Locator;
   readonly pageGuideOverlay: Locator;
   readonly pageGuideCheckbox: Locator;
   readonly pageGuidePaper: Locator;
@@ -25,11 +29,15 @@ export class AppPage {
     this.page = page;
     this.markdownTextarea = page.getByLabel('Markdown (edit or paste)');
     this.disclaimerTextarea = page.getByLabel('Disclaimer / legal text (optional)');
+    this.printTitleInput = page.getByLabel('Title text');
+    this.printTitleLevel = page.getByLabel('Title level');
     this.preview = page.locator('#md-preview');
     this.printRoot = page.locator('#print-root');
     this.printFooterBlock = page.locator('#print-footer-block');
     this.disclaimerFooter = page.locator('#disclaimer-footer');
     this.brandHeader = page.locator('#brand-header');
+    this.headerLogoColumn = page.locator('#header-logo-column');
+    this.brandHeaderTitle = page.locator('#brand-header-title');
     this.pageGuideOverlay = page.locator('#page-guide-overlay');
     this.pageGuideCheckbox = page.getByRole('checkbox', { name: 'Show guides' });
     this.pageGuidePaper = page.getByLabel('Paper');
@@ -66,6 +74,12 @@ export class AppPage {
 
   async setDisclaimer(text: string) {
     await this.disclaimerTextarea.fill(text);
+    await this.page.waitForTimeout(BRANDING_SETTLE_MS);
+  }
+
+  async setPrintTitle(text: string, level: 'h1' | 'h2' | 'h3' | 'p' = 'h1') {
+    await this.printTitleInput.fill(text);
+    await this.printTitleLevel.selectOption(level);
     await this.page.waitForTimeout(BRANDING_SETTLE_MS);
   }
 

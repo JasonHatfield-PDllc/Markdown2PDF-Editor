@@ -175,3 +175,61 @@ export function insertHorizontalRule(ta) {
   ta.setSelectionRange(pos, pos);
   ta.focus();
 }
+
+const INDENT = '  ';
+
+/**
+ * Add 2-space indent to each line in the selection (or current line).
+ * @param {HTMLTextAreaElement} ta
+ */
+export function indentLines(ta) {
+  const { v, blockStart, blockEnd } = getBlockBounds(ta);
+  const block = v.slice(blockStart, blockEnd);
+  const newBlock = block
+    .split('\n')
+    .map((line) => INDENT + line)
+    .join('\n');
+  applyBlock(ta, v, blockStart, blockEnd, newBlock);
+}
+
+/**
+ * Remove up to 2 leading spaces from each line in the selection (or current line).
+ * @param {HTMLTextAreaElement} ta
+ */
+export function outdentLines(ta) {
+  const { v, blockStart, blockEnd } = getBlockBounds(ta);
+  const block = v.slice(blockStart, blockEnd);
+  const newBlock = block
+    .split('\n')
+    .map((line) => {
+      if (line.startsWith(INDENT)) return line.slice(INDENT.length);
+      if (line.startsWith(' ')) return line.slice(1);
+      if (line.startsWith('\t')) return line.slice(1);
+      return line;
+    })
+    .join('\n');
+  applyBlock(ta, v, blockStart, blockEnd, newBlock);
+}
+
+/**
+ * Insert a 3×3 GFM table with a header row; selects the first header cell text.
+ * @param {HTMLTextAreaElement} ta
+ */
+export function insertTable(ta) {
+  const v = ta.value;
+  const start = ta.selectionStart;
+  const table =
+    '| Header 1 | Header 2 | Header 3 |\n' +
+    '| --- | --- | --- |\n' +
+    '| Cell | Cell | Cell |\n' +
+    '| Cell | Cell | Cell |\n' +
+    '| Cell | Cell | Cell |';
+  const prefix = start > 0 && v[start - 1] !== '\n' ? '\n\n' : start > 0 ? '\n' : '';
+  const suffix = '\n\n';
+  const insert = prefix + table + suffix;
+  ta.value = v.slice(0, start) + insert + v.slice(start);
+  const cellStart = start + prefix.length + 2;
+  const cellEnd = cellStart + 'Header 1'.length;
+  ta.setSelectionRange(cellStart, cellEnd);
+  ta.focus();
+}

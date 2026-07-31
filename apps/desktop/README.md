@@ -15,11 +15,16 @@ Starts Vite on `http://127.0.0.1:5174` and launches Electron.
 
 ## Build installer (Windows)
 
+From the **non-OneDrive** checkout (`C:\Cursor-Development\MyStartPage\Markdown2PDF`):
+
 ```bash
+npm ci
 npm run pack:desktop
 ```
 
 Output: `apps/desktop/release/Markdown2PDF Editor-0.1.0-Setup.exe`
+
+Packaging under OneDrive can fail (missing `app-builder` binaries / sync conflicts). Prefer this path or CI.
 
 ## Architecture
 

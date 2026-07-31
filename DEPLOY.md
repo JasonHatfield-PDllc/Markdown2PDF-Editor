@@ -24,7 +24,7 @@ On **GitHub Free** and **Team**, **GitHub Pages only works for [public repositor
 In PowerShell (adjust paths and remote URL):
 
 ```powershell
-cd "C:\Users\JasonHatfield\OneDrive - Pragmatic Disruptor LLC\Documents\MyStartPage\Markdown2PDF"
+cd "C:\Cursor-Development\MyStartPage\Markdown2PDF"
 
 git init
 git branch -M main

@@ -25,7 +25,7 @@ test.describe('Journey: branded document', () => {
     await expect(app.brandHeader).toBeVisible();
     await expect(app.brandHeader.locator('img')).toHaveAttribute('src', /example\.com\/logo\.png/);
 
-    await expect(app.printRoot.locator('h1')).toContainText('Quarterly Update');
+    await expect(app.printRoot.locator('#md-preview h1')).toContainText('Quarterly Update');
     await expect(app.printRoot).toContainText('Revenue grew year over year.');
     await expect(app.printRoot).toContainText('For authorized recipients only.');
   });
@@ -46,5 +46,64 @@ test.describe('Journey: branded document', () => {
     await expect(app.printFooterBlock).toBeVisible();
     await expect(app.disclaimerFooter).toContainText('Draft — not for distribution.');
     await expect(app.preview.locator('h2')).toContainText('Deliverable');
+  });
+
+  test('header Left at 100% scale uses a shrink-wrap logo column (placement is meaningful)', async ({
+    page,
+  }) => {
+    const app = new AppPage(page);
+    await app.goto();
+
+    const uploadInput = page.locator('#file-logo');
+    await uploadInput.setInputFiles(logoFixture);
+    await page.getByLabel('Header logo placement').selectOption('left');
+    await page.getByLabel('Header logo scale').fill('100');
+    await page.getByLabel('Header logo scale').dispatchEvent('change');
+    await page.waitForTimeout(500);
+
+    await expect(app.brandHeader).toBeVisible();
+    await expect(app.headerLogoColumn).toBeVisible();
+
+    const metrics = await app.headerLogoColumn.evaluate((col) => {
+      const parent = col.parentElement;
+      return {
+        colWidth: col.getBoundingClientRect().width,
+        parentWidth: parent?.getBoundingClientRect().width ?? 0,
+        justify: parent?.className ?? '',
+      };
+    });
+    expect(metrics.parentWidth).toBeGreaterThan(0);
+    expect(metrics.colWidth).toBeLessThan(metrics.parentWidth * 0.9);
+    expect(metrics.justify).toContain('justify-start');
+  });
+
+  test('print title and logo share a smart header row; empty title+logo hides header', async ({
+    page,
+  }) => {
+    const app = new AppPage(page);
+    await app.goto();
+
+    await expect(app.brandHeader).toBeHidden();
+
+    await app.setPrintTitle('Board Packet', 'h1');
+    await expect(app.brandHeader).toBeVisible();
+    await expect(app.brandHeaderTitle).toContainText('Board Packet');
+    await expect(app.headerLogoColumn).toBeHidden();
+
+    const uploadInput = page.locator('#file-logo');
+    await uploadInput.setInputFiles(logoFixture);
+    await page.waitForTimeout(500);
+
+    await expect(app.headerLogoColumn).toBeVisible();
+    await expect(app.brandHeaderTitle).toBeVisible();
+
+    await app.printTitleInput.fill('');
+    await page.waitForTimeout(500);
+    await expect(app.brandHeaderTitle).toBeHidden();
+    await expect(app.brandHeader).toBeVisible();
+
+    await page.getByRole('button', { name: 'Remove logo preview' }).click();
+    await page.waitForTimeout(300);
+    await expect(app.brandHeader).toBeHidden();
   });
 });

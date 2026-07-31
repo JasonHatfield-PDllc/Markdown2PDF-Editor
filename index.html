@@ -163,6 +163,30 @@
               <button
                 type="button"
                 class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="indent"
+                title="Indent (2 spaces)"
+              >
+                Indent
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="outdent"
+                title="Outdent (remove 2 spaces)"
+              >
+                Outdent
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                data-md-insert="table"
+                title="Insert table (3×3)"
+              >
+                Table
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                 data-md-insert="link"
                 title="Link [text](https://)"
               >
@@ -321,7 +345,7 @@
                       min="1"
                       max="100"
                       step="1"
-                      value="100"
+                      value="35"
                       class="w-16 rounded border border-slate-300 px-1.5 py-1 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                       aria-describedby="logo-scale-hint"
                     />
@@ -358,10 +382,35 @@
                   </div>
                 </div>
                 <p id="logo-scale-hint" class="text-[11px] leading-snug text-slate-400">
-                  Scale applies to header/footer when that placement is not None. Footer + disclaimer side‑by‑side: logo column is at most ~52% so text keeps room.
+                  Scale is the max width of the logo column (% of the header/footer), not full-page stretch. Placement moves that column left/center/right. Footer + disclaimer side‑by‑side: logo column is at most ~52% so text keeps room.
                 </p>
               </div>
             </div>
+          </section>
+
+          <section class="space-y-2">
+            <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Print title</h2>
+            <p class="text-[11px] leading-snug text-slate-400">
+              Optional title in the header area with the logo (not added to the Markdown source).
+            </p>
+            <label class="block text-xs text-slate-600" for="input-print-title">Title text</label>
+            <input
+              id="input-print-title"
+              type="text"
+              class="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+              placeholder="Document title for the printed header"
+              autocomplete="off"
+            />
+            <label class="block text-xs text-slate-600" for="select-print-title-level">Title level</label>
+            <select
+              id="select-print-title-level"
+              class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800"
+            >
+              <option value="h1">H1</option>
+              <option value="h2">H2</option>
+              <option value="h3">H3</option>
+              <option value="p">Plain</option>
+            </select>
           </section>
 
           <section class="space-y-2">
@@ -407,13 +456,19 @@
           ></div>
           <div class="relative z-[1] min-w-0">
           <header id="brand-header" class="mb-6 hidden border-b border-slate-200 pb-4 print:mb-4">
-            <div id="brand-header-inner" class="flex w-full">
-              <img
-                id="brand-logo-header-img"
-                src=""
-                alt="Logo"
-                class="block max-h-48 max-w-full object-contain"
-              />
+            <div id="brand-header-inner" class="flex w-full min-w-0 items-center gap-4">
+              <div id="header-logo-column" class="hidden min-w-0 shrink">
+                <img
+                  id="brand-logo-header-img"
+                  src=""
+                  alt="Logo"
+                  class="block h-auto max-h-48 max-w-full object-contain"
+                />
+              </div>
+              <div
+                id="brand-header-title"
+                class="hidden min-w-0 flex-1 text-slate-900"
+              ></div>
             </div>
           </header>
 

@@ -252,7 +252,7 @@ const KEY_LOGO_LAYOUT = 'm2pdf_logo_layout_v1';
 
 export const DEFAULT_LOGO_LAYOUT = {
   headerPlacement: 'left',
-  headerScale: 100,
+  headerScale: 35,
   footerPlacement: 'none',
   footerScale: 100,
 };
@@ -329,6 +329,53 @@ export function savePageGuideSettings(s) {
     localStorage.setItem(KEY_PAGE_GUIDE, JSON.stringify(s));
   } catch {
     /* ignore quota */
+  }
+}
+
+const KEY_PRINT_TITLE = 'm2pdf_print_title_v1';
+
+/** @typedef {'h1' | 'h2' | 'h3' | 'p'} PrintTitleLevel */
+
+/**
+ * @typedef {{ text: string, level: PrintTitleLevel }} PrintTitleSettings
+ */
+
+export const DEFAULT_PRINT_TITLE = {
+  text: '',
+  level: /** @type {PrintTitleLevel} */ ('h1'),
+};
+
+/** @param {unknown} p @returns {PrintTitleSettings} */
+function normalizePrintTitle(p) {
+  const out = { ...DEFAULT_PRINT_TITLE };
+  if (p && typeof p === 'object') {
+    const o = /** @type {Record<string, unknown>} */ (p);
+    if (typeof o.text === 'string') out.text = o.text;
+    if (o.level === 'h1' || o.level === 'h2' || o.level === 'h3' || o.level === 'p') {
+      out.level = o.level;
+    }
+  }
+  return out;
+}
+
+/** @returns {PrintTitleSettings} */
+export function loadPrintTitle() {
+  try {
+    const raw = localStorage.getItem(KEY_PRINT_TITLE);
+    if (!raw) return { ...DEFAULT_PRINT_TITLE };
+    return normalizePrintTitle(JSON.parse(raw));
+  } catch {
+    return { ...DEFAULT_PRINT_TITLE };
+  }
+}
+
+/** @param {Partial<PrintTitleSettings> | PrintTitleSettings} settings */
+export function savePrintTitle(settings) {
+  try {
+    const merged = normalizePrintTitle({ ...DEFAULT_PRINT_TITLE, ...settings });
+    localStorage.setItem(KEY_PRINT_TITLE, JSON.stringify(merged));
+  } catch {
+    /* ignore */
   }
 }
 

@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify';
 import { createMarkdownRenderer, preprocessMarkdown } from '@m2pdf/core';
 import {
   applyHeadingLevel,
+  indentLines,
   insertBlockquote,
   insertBold,
   insertBulletList,
@@ -11,6 +12,8 @@ import {
   insertItalic,
   insertLink,
   insertNumberedList,
+  insertTable,
+  outdentLines,
 } from '@m2pdf/core';
 import { getUsableHeightPx } from '@m2pdf/core';
 import {
@@ -21,12 +24,14 @@ import {
   loadLogoBundle,
   loadLogoLayout,
   loadPageGuideSettings,
+  loadPrintTitle,
   loadRecentLogoUrls,
   loadSidebarWidthPx,
   saveDisclaimer,
   saveLogoLayout,
   saveLogoSlot,
   savePageGuideSettings,
+  savePrintTitle,
   saveSidebarWidthPx,
 } from './storage.js';
 
@@ -57,6 +62,8 @@ const el = {
   selectLogoFooterPlacement: document.getElementById('select-logo-footer-placement'),
   inputLogoHeaderScale: document.getElementById('input-logo-header-scale'),
   inputLogoFooterScale: document.getElementById('input-logo-footer-scale'),
+  inputPrintTitle: document.getElementById('input-print-title'),
+  selectPrintTitleLevel: document.getElementById('select-print-title-level'),
   textareaDisclaimer: document.getElementById('textarea-disclaimer'),
   btnExportPdf: document.getElementById('btn-export-pdf'),
   printRoot: document.getElementById('print-root'),
@@ -66,7 +73,9 @@ const el = {
   mdPreview: document.getElementById('md-preview'),
   brandHeader: document.getElementById('brand-header'),
   brandHeaderInner: document.getElementById('brand-header-inner'),
+  headerLogoColumn: document.getElementById('header-logo-column'),
   brandLogoHeaderImg: document.getElementById('brand-logo-header-img'),
+  brandHeaderTitle: document.getElementById('brand-header-title'),
   printFooterBlock: document.getElementById('print-footer-block'),
   printFooterLayout: document.getElementById('print-footer-layout'),
   footerLogoColumn: document.getElementById('footer-logo-column'),
@@ -391,7 +400,7 @@ function readLogoLayoutFromForm() {
   return {
     headerPlacement: /** @type {'left'|'center'|'right'|'none'} */ (hp),
     footerPlacement: /** @type {'left'|'center'|'right'|'none'} */ (fp),
-    headerScale: clampLogoScale(el.inputLogoHeaderScale?.valueAsNumber ?? 100),
+    headerScale: clampLogoScale(el.inputLogoHeaderScale?.valueAsNumber ?? 35),
     footerScale: clampLogoScale(el.inputLogoFooterScale?.valueAsNumber ?? 100),
   };
 }
@@ -411,7 +420,7 @@ function applyLogoLayoutToForm(layout) {
   updateLogoScaleControlsEnabled();
 }
 
-/** Flex justification for header logo strip only */
+/** Flex justification for header strip (logo-only or centered logo+title group). */
 const LOGO_JUSTIFY = {
   left: 'justify-start',
   center: 'justify-center',
@@ -419,30 +428,123 @@ const LOGO_JUSTIFY = {
   none: 'justify-start',
 };
 
+const TITLE_LEVEL_CLASS = {
+  h1: 'text-2xl font-semibold leading-tight text-slate-900',
+  h2: 'text-xl font-semibold leading-tight text-slate-900',
+  h3: 'text-lg font-semibold leading-tight text-slate-900',
+  p: 'text-base font-medium leading-snug text-slate-800',
+};
+
 /** `whitespace-pre-line` keeps line breaks from the textarea; long lines still wrap. */
 const DISCLAIMER_BODY_CLASS = 'text-xs leading-relaxed text-slate-600 whitespace-pre-line';
 
+function readPrintTitleFromForm() {
+  const levelRaw = el.selectPrintTitleLevel?.value ?? 'h1';
+  const level =
+    levelRaw === 'h2' || levelRaw === 'h3' || levelRaw === 'p' ? levelRaw : 'h1';
+  return {
+    text: el.inputPrintTitle?.value ?? '',
+    level: /** @type {'h1'|'h2'|'h3'|'p'} */ (level),
+  };
+}
+
+function applyPrintTitleToForm(settings) {
+  if (el.inputPrintTitle) el.inputPrintTitle.value = settings.text ?? '';
+  if (el.selectPrintTitleLevel) el.selectPrintTitleLevel.value = settings.level ?? 'h1';
+}
+
+/**
+ * Header chrome: optional logo column (scale = max-width %) + optional print title.
+ * Smart layout: logo-only / title-only / logo+title row / hidden when neither.
+ */
 function applyLogoBranding() {
   const srcH = getLogoSrcForSlot('header');
   const layout = readLogoLayoutFromForm();
+  const titleSettings = readPrintTitleFromForm();
+  const titleText = titleSettings.text.trim();
+  const showLogo = Boolean(srcH) && layout.headerPlacement !== 'none';
+  const showTitle = Boolean(titleText);
+  const showHeader = showLogo || showTitle;
 
-  const showHeader = Boolean(srcH) && layout.headerPlacement !== 'none';
+  const logoCol = el.headerLogoColumn;
+  const titleEl = el.brandHeaderTitle;
+  const inner = el.brandHeaderInner;
 
-  if (srcH) {
+  if (srcH && el.brandLogoHeaderImg) {
     el.brandLogoHeaderImg.src = srcH;
-  } else {
+  } else if (el.brandLogoHeaderImg) {
     el.brandLogoHeaderImg.removeAttribute('src');
   }
 
-  el.brandHeader.classList.toggle('hidden', !showHeader);
+  el.brandHeader?.classList.toggle('hidden', !showHeader);
 
-  const hj = LOGO_JUSTIFY[layout.headerPlacement] ?? 'justify-start';
-  if (el.brandHeaderInner) el.brandHeaderInner.className = `flex w-full ${hj}`;
-
-  const hs = layout.headerPlacement === 'none' ? 100 : layout.headerScale;
+  if (logoCol) {
+    logoCol.classList.toggle('hidden', !showLogo);
+    logoCol.style.maxWidth = '';
+    logoCol.style.minWidth = '';
+    logoCol.style.flex = '';
+    logoCol.style.order = '';
+  }
   if (el.brandLogoHeaderImg) {
-    el.brandLogoHeaderImg.style.width = showHeader ? `${hs}%` : '';
+    el.brandLogoHeaderImg.style.width = '';
+    el.brandLogoHeaderImg.style.maxWidth = '';
     el.brandLogoHeaderImg.style.height = 'auto';
+  }
+  if (titleEl) {
+    titleEl.classList.toggle('hidden', !showTitle);
+    titleEl.textContent = titleText;
+    titleEl.style.order = '';
+    titleEl.style.flex = '';
+    titleEl.style.textAlign = '';
+    const levelClass = TITLE_LEVEL_CLASS[titleSettings.level] ?? TITLE_LEVEL_CLASS.h1;
+    titleEl.className = showTitle
+      ? `min-w-0 ${levelClass}`
+      : 'hidden min-w-0 flex-1 text-slate-900';
+  }
+
+  if (!showHeader || !inner) {
+    applyPrintFooterBlock();
+    return;
+  }
+
+  const hp = layout.headerPlacement;
+  const hs = layout.headerPlacement === 'none' ? 35 : layout.headerScale;
+
+  if (showLogo && logoCol && el.brandLogoHeaderImg) {
+    logoCol.style.maxWidth = `${hs}%`;
+    logoCol.style.minWidth = '0';
+    logoCol.style.flex = '0 1 auto';
+    el.brandLogoHeaderImg.style.width = 'auto';
+    el.brandLogoHeaderImg.style.maxWidth = '100%';
+    el.brandLogoHeaderImg.style.height = 'auto';
+  }
+
+  if (showLogo && showTitle && titleEl && logoCol) {
+    inner.className = 'flex w-full min-w-0 items-center gap-4';
+    titleEl.className = `min-w-0 flex-1 ${TITLE_LEVEL_CLASS[titleSettings.level] ?? TITLE_LEVEL_CLASS.h1}`;
+    if (hp === 'right') {
+      titleEl.style.order = '1';
+      logoCol.style.order = '2';
+      titleEl.style.textAlign = 'right';
+      inner.className += ' justify-end';
+    } else if (hp === 'center') {
+      logoCol.style.order = '1';
+      titleEl.style.order = '2';
+      titleEl.style.flex = '0 1 auto';
+      titleEl.className = `min-w-0 shrink ${TITLE_LEVEL_CLASS[titleSettings.level] ?? TITLE_LEVEL_CLASS.h1}`;
+      inner.className += ' justify-center';
+    } else {
+      logoCol.style.order = '1';
+      titleEl.style.order = '2';
+      titleEl.style.textAlign = 'left';
+      inner.className += ' justify-start';
+    }
+  } else if (showLogo && logoCol) {
+    const hj = LOGO_JUSTIFY[hp] ?? 'justify-start';
+    inner.className = `flex w-full min-w-0 items-center ${hj}`;
+  } else if (showTitle && titleEl) {
+    inner.className = 'flex w-full min-w-0 items-center justify-start';
+    titleEl.className = `min-w-0 w-full ${TITLE_LEVEL_CLASS[titleSettings.level] ?? TITLE_LEVEL_CLASS.h1}`;
   }
 
   applyPrintFooterBlock();
@@ -684,6 +786,8 @@ function initFromStorage() {
   el.textareaDisclaimer.value = disclaimer;
   syncDisclaimerDisplay();
 
+  applyPrintTitleToForm(loadPrintTitle());
+
   const pg = loadPageGuideSettings();
   if (el.pageGuideEnabled) el.pageGuideEnabled.checked = pg.enabled;
   if (el.pageGuidePaper) el.pageGuidePaper.value = pg.paper;
@@ -824,6 +928,20 @@ el.textareaDisclaimer.addEventListener('input', () => {
   persistDisclaimer();
 });
 
+const persistPrintTitleDebounced = debounce(() => {
+  savePrintTitle(readPrintTitleFromForm());
+}, 400);
+
+el.inputPrintTitle?.addEventListener('input', () => {
+  applyLogoBranding();
+  persistPrintTitleDebounced();
+});
+
+el.selectPrintTitleLevel?.addEventListener('change', () => {
+  savePrintTitle(readPrintTitleFromForm());
+  applyLogoBranding();
+});
+
 el.btnExportPdf?.addEventListener('click', () => {
   exportPdf();
 });
@@ -849,6 +967,9 @@ function initMdToolbar() {
     else if (action === 'p') applyHeadingLevel(ta, 0);
     else if (action === 'ul') insertBulletList(ta);
     else if (action === 'ol') insertNumberedList(ta);
+    else if (action === 'indent') indentLines(ta);
+    else if (action === 'outdent') outdentLines(ta);
+    else if (action === 'table') insertTable(ta);
     else if (action === 'link') insertLink(ta);
     else if (action === 'quote') insertBlockquote(ta);
     else if (action === 'code') insertInlineCode(ta);

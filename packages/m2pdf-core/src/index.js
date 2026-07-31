@@ -10,9 +10,13 @@ export {
   insertBlockquote,
   insertLink,
   insertHorizontalRule,
+  indentLines,
+  outdentLines,
+  insertTable,
 } from './mdToolbar.js';
 export {
   STORAGE_KEYS,
   DEFAULT_LOGO_LAYOUT,
+  DEFAULT_PRINT_TITLE,
   MAX_LOGO_DATA_URL_CHARS,
 } from './branding-keys.js';
