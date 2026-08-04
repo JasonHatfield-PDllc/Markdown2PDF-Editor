@@ -4,6 +4,7 @@ export const STORAGE_KEYS = {
   logoState: 'm2pdf_logo_state_v1',
   logoLayout: 'm2pdf_logo_layout_v1',
   pageGuide: 'm2pdf_page_guide_v1',
+  mdDraft: 'm2pdf_md_draft_v1',
 } as const;
 
 /** Debounce in main.js is 140ms; use a small cushion for preview updates. */

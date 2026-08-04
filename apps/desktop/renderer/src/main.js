@@ -20,10 +20,12 @@ import {
   MAX_LOGO_DATA_URL_CHARS,
   addRecentLogoUrl,
   clearLogoSlot,
+  clearMarkdownDraft,
   loadBranding,
   loadFooterRepeat,
   loadLogoBundle,
   loadLogoLayout,
+  loadMarkdownDraft,
   loadPageGuideSettings,
   loadPrintTitle,
   loadRecentLogoUrls,
@@ -32,6 +34,7 @@ import {
   saveFooterRepeat,
   saveLogoLayout,
   saveLogoSlot,
+  saveMarkdownDraft,
   savePageGuideSettings,
   savePrintTitle,
   saveSidebarWidthPx,
@@ -176,6 +179,7 @@ async function openMdViaFilePicker() {
     mdFilePath = result.path ?? null;
     mdSuggestedFilename = result.name || 'document.md';
     syncMdSaveButton();
+    saveMarkdownDraft(result.text);
     renderMarkdown();
   }
 }
@@ -830,6 +834,9 @@ function debounce(fn, ms) {
 const persistDisclaimer = debounce(() => {
   saveDisclaimer(el.textareaDisclaimer.value);
 }, 400);
+const persistMarkdownDraft = debounce(() => {
+  saveMarkdownDraft(el.textareaMd?.value ?? '');
+}, 400);
 const renderMarkdownDebounced = debounce(() => {
   renderMarkdown();
 }, RENDER_DEBOUNCE_MS);
@@ -862,6 +869,11 @@ function initFromStorage() {
   el.textareaDisclaimer.value = disclaimer;
   syncDisclaimerDisplay();
 
+  const draft = loadMarkdownDraft();
+  if (draft && el.textareaMd) {
+    el.textareaMd.value = draft;
+  }
+
   applyFooterRepeatMode(loadFooterRepeat());
 
   applyPrintTitleToForm(loadPrintTitle());
@@ -884,6 +896,7 @@ function initFromStorage() {
 
 el.textareaMd.addEventListener('input', () => {
   renderMarkdownDebounced();
+  persistMarkdownDraft();
 });
 
 el.btnOpenMd?.addEventListener('click', () => {
@@ -895,6 +908,7 @@ el.btnClear.addEventListener('click', () => {
   mdFilePath = null;
   mdSuggestedFilename = 'document.md';
   syncMdSaveButton();
+  clearMarkdownDraft();
   renderMarkdown();
 });
 
@@ -1059,6 +1073,7 @@ function initMdToolbar() {
     else if (action === 'code') insertInlineCode(ta);
     else if (action === 'hr') insertHorizontalRule(ta);
     renderMarkdown();
+    saveMarkdownDraft(ta.value);
   });
 }
 

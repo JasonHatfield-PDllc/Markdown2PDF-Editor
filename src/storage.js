@@ -409,3 +409,44 @@ export function savePrintTitle(settings) {
   }
 }
 
+/** Markdown editor draft — restored after refresh (same browser). */
+const KEY_MD_DRAFT = 'm2pdf_md_draft_v1';
+
+/** Soft cap so a huge paste does not blow the ~5MB localStorage budget. */
+const MAX_MD_DRAFT_CHARS = 1_000_000;
+
+/** @returns {string} */
+export function loadMarkdownDraft() {
+  try {
+    return localStorage.getItem(KEY_MD_DRAFT) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** @param {string} text */
+export function saveMarkdownDraft(text) {
+  try {
+    const t = typeof text === 'string' ? text : '';
+    if (!t) {
+      localStorage.removeItem(KEY_MD_DRAFT);
+      return;
+    }
+    if (t.length > MAX_MD_DRAFT_CHARS) {
+      /* Prefer keeping branding prefs over failing an oversized draft write. */
+      return;
+    }
+    localStorage.setItem(KEY_MD_DRAFT, t);
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export function clearMarkdownDraft() {
+  try {
+    localStorage.removeItem(KEY_MD_DRAFT);
+  } catch {
+    /* ignore */
+  }
+}
+

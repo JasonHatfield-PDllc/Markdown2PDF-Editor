@@ -24,14 +24,17 @@ import {
   loadFooterRepeat,
   loadLogoBundle,
   loadLogoLayout,
+  loadMarkdownDraft,
   loadPageGuideSettings,
   loadPrintTitle,
   loadRecentLogoUrls,
   loadSidebarWidthPx,
+  clearMarkdownDraft,
   saveDisclaimer,
   saveFooterRepeat,
   saveLogoLayout,
   saveLogoSlot,
+  saveMarkdownDraft,
   savePageGuideSettings,
   savePrintTitle,
   saveSidebarWidthPx,
@@ -230,6 +233,7 @@ async function openMdViaFilePicker() {
       mdFileHandle = handle;
       mdSuggestedFilename = file.name || 'document.md';
       syncMdSaveButton();
+      saveMarkdownDraft(text);
       renderMarkdown();
       return;
     }
@@ -878,6 +882,9 @@ function debounce(fn, ms) {
 const persistDisclaimer = debounce(() => {
   saveDisclaimer(el.textareaDisclaimer.value);
 }, 400);
+const persistMarkdownDraft = debounce(() => {
+  saveMarkdownDraft(el.textareaMd?.value ?? '');
+}, 400);
 const renderMarkdownDebounced = debounce(() => {
   renderMarkdown();
 }, RENDER_DEBOUNCE_MS);
@@ -910,6 +917,11 @@ function initFromStorage() {
   el.textareaDisclaimer.value = disclaimer;
   syncDisclaimerDisplay();
 
+  const draft = loadMarkdownDraft();
+  if (draft && el.textareaMd) {
+    el.textareaMd.value = draft;
+  }
+
   applyFooterRepeatMode(loadFooterRepeat());
 
   applyPrintTitleToForm(loadPrintTitle());
@@ -932,6 +944,7 @@ function initFromStorage() {
 
 el.textareaMd.addEventListener('input', () => {
   renderMarkdownDebounced();
+  persistMarkdownDraft();
 });
 
 el.btnOpenMd?.addEventListener('click', () => {
@@ -951,6 +964,7 @@ el.fileMd.addEventListener('change', () => {
   const reader = new FileReader();
   reader.onload = () => {
     el.textareaMd.value = typeof reader.result === 'string' ? reader.result : '';
+    saveMarkdownDraft(el.textareaMd.value);
     renderMarkdown();
   };
   reader.readAsText(file, 'UTF-8');
@@ -962,6 +976,7 @@ el.btnClear.addEventListener('click', () => {
   mdFileHandle = null;
   mdSuggestedFilename = 'document.md';
   syncMdSaveButton();
+  clearMarkdownDraft();
   renderMarkdown();
 });
 
@@ -1126,6 +1141,7 @@ function initMdToolbar() {
     else if (action === 'code') insertInlineCode(ta);
     else if (action === 'hr') insertHorizontalRule(ta);
     renderMarkdown();
+    saveMarkdownDraft(ta.value);
   });
 }
 
