@@ -14,6 +14,14 @@ export const PAGE_MARGIN_MM = {
   left: 14,
 };
 
+/** Every-page footer mode: larger bottom margin reserves the repeating brand strip. */
+export const PAGE_MARGIN_MM_EVERY_PAGE = {
+  top: 16,
+  right: 14,
+  bottom: 40,
+  left: 14,
+};
+
 /** Usable body height (mm) = sheet height − top/bottom print margins. */
 export const PAPERS = {
   letter: { label: 'US Letter', heightMm: 279.4 },
@@ -24,9 +32,12 @@ export const PAPERS = {
 /**
  * Vertical pitch for repeating guide lines (CSS px).
  * @param {'letter' | 'a4' | 'legal'} paperId
+ * @param {{ bottomMm?: number }} [opts]
  */
-export function getUsableHeightPx(paperId) {
+export function getUsableHeightPx(paperId, opts) {
   const p = PAPERS[paperId] ?? PAPERS.letter;
-  const usableMm = p.heightMm - PAGE_MARGIN_MM.top - PAGE_MARGIN_MM.bottom;
+  const bottomMm =
+    opts && Number.isFinite(opts.bottomMm) ? /** @type {number} */ (opts.bottomMm) : PAGE_MARGIN_MM.bottom;
+  const usableMm = p.heightMm - PAGE_MARGIN_MM.top - bottomMm;
   return Math.max(48, usableMm * MM_TO_PX);
 }

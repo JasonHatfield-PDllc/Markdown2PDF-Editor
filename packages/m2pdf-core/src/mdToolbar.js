@@ -175,10 +175,11 @@ export function insertHorizontalRule(ta) {
   ta.focus();
 }
 
+/** One indent level in the editor (2 ASCII spaces). Preview maps each level to &emsp;. */
 const INDENT = '  ';
 
 /**
- * Add 2-space indent to each line in the selection (or current line).
+ * Add one indent level to each line in the selection (or current line).
  * @param {HTMLTextAreaElement} ta
  */
 export function indentLines(ta) {
@@ -192,7 +193,7 @@ export function indentLines(ta) {
 }
 
 /**
- * Remove up to 2 leading spaces from each line in the selection (or current line).
+ * Remove one indent level from each line in the selection (or current line).
  * @param {HTMLTextAreaElement} ta
  */
 export function outdentLines(ta) {

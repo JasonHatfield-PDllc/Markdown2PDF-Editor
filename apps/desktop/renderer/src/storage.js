@@ -1,5 +1,8 @@
 const KEY_DISCLAIMER = 'm2pdf_disclaimer_v1';
 
+/** @typedef {'last' | 'every'} FooterRepeatMode */
+const KEY_FOOTER_REPEAT = 'm2pdf_footer_repeat_v1';
+
 const KEY_SIDEBAR_WIDTH_PX = 'm2pdf_sidebar_width_px_v1';
 
 
@@ -198,6 +201,27 @@ export function saveDisclaimer(text) {
 
   }
 
+}
+
+
+
+/** @returns {FooterRepeatMode} */
+export function loadFooterRepeat() {
+  try {
+    const v = localStorage.getItem(KEY_FOOTER_REPEAT);
+    return v === 'every' ? 'every' : 'last';
+  } catch {
+    return 'last';
+  }
+}
+
+/** @param {FooterRepeatMode} mode */
+export function saveFooterRepeat(mode) {
+  try {
+    localStorage.setItem(KEY_FOOTER_REPEAT, mode === 'every' ? 'every' : 'last');
+  } catch {
+    /* ignore quota */
+  }
 }
 
 

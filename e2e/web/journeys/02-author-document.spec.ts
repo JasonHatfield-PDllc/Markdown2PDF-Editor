@@ -39,7 +39,9 @@ test.describe('Journey: author a document', () => {
     await expect(app.disclaimerFooter).toContainText('Confidential — internal use only.');
   });
 
-  test('toolbar Table inserts a pipe table; Indent adds leading spaces', async ({ page }) => {
+  test('toolbar Table inserts a pipe table; Indent adds leading spaces visible in preview', async ({
+    page,
+  }) => {
     const app = new AppPage(page);
     await app.goto();
 
@@ -52,7 +54,11 @@ test.describe('Journey: author a document', () => {
     await app.selectMarkdownRange(0, 11);
     await app.clickToolbarInsert('Indent');
     await expect(app.markdownTextarea).toHaveValue('  Nested item');
+    const previewText = await app.preview.locator('p').evaluate((el) => el.textContent ?? '');
+    expect(previewText.startsWith('\u2003')).toBe(true);
+    expect(previewText).toContain('Nested item');
     await app.clickToolbarInsert('Outdent');
     await expect(app.markdownTextarea).toHaveValue('Nested item');
+    await expect(app.preview.locator('p')).toHaveText('Nested item');
   });
 });

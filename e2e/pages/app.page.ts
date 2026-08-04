@@ -11,6 +11,7 @@ export class AppPage {
 
   readonly markdownTextarea: Locator;
   readonly disclaimerTextarea: Locator;
+  readonly footerRepeatSelect: Locator;
   readonly printTitleInput: Locator;
   readonly printTitleLevel: Locator;
   readonly preview: Locator;
@@ -29,6 +30,7 @@ export class AppPage {
     this.page = page;
     this.markdownTextarea = page.getByLabel('Markdown (edit or paste)');
     this.disclaimerTextarea = page.getByLabel('Disclaimer / legal text (optional)');
+    this.footerRepeatSelect = page.getByLabel('Footer on pages');
     this.printTitleInput = page.getByLabel('Title text');
     this.printTitleLevel = page.getByLabel('Title level');
     this.preview = page.locator('#md-preview');
@@ -74,6 +76,12 @@ export class AppPage {
 
   async setDisclaimer(text: string) {
     await this.disclaimerTextarea.fill(text);
+    await this.page.waitForTimeout(BRANDING_SETTLE_MS);
+  }
+
+  /** @param {'last' | 'every'} mode */
+  async setFooterRepeat(mode: 'last' | 'every') {
+    await this.footerRepeatSelect.selectOption(mode);
     await this.page.waitForTimeout(BRANDING_SETTLE_MS);
   }
 

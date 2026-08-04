@@ -90,17 +90,17 @@ Guides help **see** bands; they do not **force** PDF breaks.
 
 ---
 
-## Print footer placement — “all pages” vs “last page only” (deferred)
+## Print footer placement — last page vs every page (shipped)
 
-**Intent:** Optional control (e.g. on the same row as “Disclaimer / legal text”) so authors can choose whether the **print footer** (disclaimer + footer logo block) should appear **once at the end of the document** (typical **last page** for normal-length text) or **repeated on every printed page** (compliance-style).
+**Status:** Shipped on web + desktop. Sidebar control **Footer on pages** (`last` default / `every`).
 
-**Current behavior (baseline):** The footer is a **single DOM block** after the main article; `break-inside: avoid` keeps it together. Multi-page PDFs usually show it **once near the end** (often the last page).
+**Behavior:**
 
-**“Every printed page” note:** Browsers do not offer a native “repeat this HTML on each PDF page” API. A future implementation likely relies on **print-only layout** (e.g. `position: fixed` in `@media print`) plus reserved **bottom margin** so body text does not overlap the footer. Expect **Edge/Chromium QA** and guidance that **long disclaimers** may behave poorly in repeat mode.
+- **Last page only:** in-flow `#print-footer-block` after the article (previous baseline).
+- **Every printed page:** print-only `position: fixed` footer + **40mm** bottom `@page` / Electron `printToPDF` margin; screen preview still shows the footer at document end.
+- Persistence: `localStorage` key `m2pdf_footer_repeat_v1`.
 
-**Risks:** Overlap/clipping, margin tuning, preview vs PDF differences, very tall footer content.
-
-**Deferred:** No implementation scheduled; revisit when product priority and print QA time are available.
+**Known limit:** Tall disclaimer + logo stacks may clip or overlap in every-page mode; UI copy asks authors to keep disclaimers short. Edge print-dialog margins/scale can still diverge from app assumptions.
 
 ---
 

@@ -1,5 +1,5 @@
 export { preprocessMarkdown, createMarkdownRenderer } from './markdown.js';
-export { MM_TO_PX, PAGE_MARGIN_MM, PAPERS, getUsableHeightPx } from './pageGuide.js';
+export { MM_TO_PX, PAGE_MARGIN_MM, PAGE_MARGIN_MM_EVERY_PAGE, PAPERS, getUsableHeightPx } from './pageGuide.js';
 export {
   insertBold,
   insertItalic,

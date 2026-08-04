@@ -15,12 +15,13 @@ import {
   insertTable,
   outdentLines,
 } from '@m2pdf/core';
-import { getUsableHeightPx } from '@m2pdf/core';
+import { getUsableHeightPx, PAGE_MARGIN_MM, PAGE_MARGIN_MM_EVERY_PAGE } from '@m2pdf/core';
 import {
   MAX_LOGO_DATA_URL_CHARS,
   addRecentLogoUrl,
   clearLogoSlot,
   loadBranding,
+  loadFooterRepeat,
   loadLogoBundle,
   loadLogoLayout,
   loadPageGuideSettings,
@@ -28,6 +29,7 @@ import {
   loadRecentLogoUrls,
   loadSidebarWidthPx,
   saveDisclaimer,
+  saveFooterRepeat,
   saveLogoLayout,
   saveLogoSlot,
   savePageGuideSettings,
@@ -66,6 +68,7 @@ const el = {
   selectPrintTitleLevel: document.getElementById('select-print-title-level'),
   selectPrintTitleAlign: document.getElementById('select-print-title-align'),
   textareaDisclaimer: document.getElementById('textarea-disclaimer'),
+  selectFooterRepeat: document.getElementById('select-footer-repeat'),
   btnExportPdf: document.getElementById('btn-export-pdf'),
   printRoot: document.getElementById('print-root'),
   pageGuideOverlay: document.getElementById('page-guide-overlay'),
@@ -184,6 +187,7 @@ async function exportPdf() {
   const result = await api.exportPdf({
     paper: paper === 'a4' || paper === 'legal' ? paper : 'letter',
     suggestedName: mdSuggestedFilename,
+    footerRepeat: readFooterRepeatFromForm(),
   });
   if (result?.canceled) return;
   if (result?.error) window.alert(result.error);
@@ -723,10 +727,64 @@ function applyPageGuide() {
   if (!root || !overlay) return;
   const v = el.pageGuidePaper?.value;
   const paper = v === 'a4' || v === 'legal' ? v : 'letter';
-  const stepPx = getUsableHeightPx(paper);
+  const every = document.body.classList.contains('m2pdf-footer-every-page');
+  const bottomMm = every ? PAGE_MARGIN_MM_EVERY_PAGE.bottom : PAGE_MARGIN_MM.bottom;
+  const stepPx = getUsableHeightPx(paper, { bottomMm });
   root.style.setProperty('--m2pdf-guide-step', `${stepPx}px`);
   const on = Boolean(el.pageGuideEnabled?.checked);
   overlay.classList.toggle('hidden', !on);
+}
+
+const PRINT_PAGE_STYLE_ID = 'm2pdf-print-page';
+
+/**
+ * `@page` cannot be keyed off a body class — inject/update margins for last vs every-page footer.
+ * @param {'last' | 'every'} mode
+ */
+function syncPrintPageMargins(mode) {
+  const bottom = mode === 'every' ? PAGE_MARGIN_MM_EVERY_PAGE.bottom : PAGE_MARGIN_MM.bottom;
+  let styleEl = document.getElementById(PRINT_PAGE_STYLE_ID);
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = PRINT_PAGE_STYLE_ID;
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = `
+@page {
+  margin: ${PAGE_MARGIN_MM.top}mm ${PAGE_MARGIN_MM.right}mm ${bottom}mm ${PAGE_MARGIN_MM.left}mm;
+  @bottom-center {
+    content: 'Page ' counter(page) ' of ' counter(pages);
+    font-size: 9pt;
+    line-height: 1.2;
+    color: #64748b;
+    font-family: ui-sans-serif, system-ui, sans-serif, 'Segoe UI', Roboto, Helvetica, Arial;
+    vertical-align: top;
+  }
+}
+`;
+}
+
+/** @returns {'last' | 'every'} */
+function readFooterRepeatFromForm() {
+  return el.selectFooterRepeat?.value === 'every' ? 'every' : 'last';
+}
+
+/**
+ * Body class + @page margins for every-page footer; screen preview stays in-flow.
+ * @param {'last' | 'every'} [mode]
+ */
+function applyFooterRepeatMode(mode) {
+  const m = mode ?? readFooterRepeatFromForm();
+  document.body.classList.toggle('m2pdf-footer-every-page', m === 'every');
+  if (el.selectFooterRepeat) el.selectFooterRepeat.value = m;
+  syncPrintPageMargins(m);
+  applyPageGuide();
+}
+
+function persistFooterRepeat() {
+  const m = readFooterRepeatFromForm();
+  saveFooterRepeat(m);
+  applyFooterRepeatMode(m);
 }
 
 function persistPageGuide() {
@@ -802,6 +860,8 @@ function initFromStorage() {
   const { disclaimer } = loadBranding();
   el.textareaDisclaimer.value = disclaimer;
   syncDisclaimerDisplay();
+
+  applyFooterRepeatMode(loadFooterRepeat());
 
   applyPrintTitleToForm(loadPrintTitle());
 
@@ -944,6 +1004,7 @@ el.textareaDisclaimer.addEventListener('input', () => {
   syncDisclaimerDisplay();
   persistDisclaimer();
 });
+el.selectFooterRepeat?.addEventListener('change', persistFooterRepeat);
 
 const persistPrintTitleDebounced = debounce(() => {
   savePrintTitle(readPrintTitleFromForm());

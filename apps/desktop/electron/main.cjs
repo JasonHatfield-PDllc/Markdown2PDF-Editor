@@ -13,6 +13,14 @@ const PDF_MARGINS_IN = {
   left: 14 / 25.4,
 };
 
+/** Every-page footer mode: larger bottom margin for the repeating brand strip. */
+const PDF_MARGINS_EVERY_PAGE_IN = {
+  top: 16 / 25.4,
+  right: 14 / 25.4,
+  bottom: 40 / 25.4,
+  left: 14 / 25.4,
+};
+
 const PAGE_SIZE_MAP = {
   letter: 'Letter',
   a4: 'A4',
@@ -158,15 +166,17 @@ function registerIpc() {
     if (canceled || !filePath) return { canceled: true };
 
     try {
+      const margins =
+        payload?.footerRepeat === 'every' ? PDF_MARGINS_EVERY_PAGE_IN : PDF_MARGINS_IN;
       const pdfBuffer = await win.webContents.printToPDF({
         printBackground: true,
         pageSize,
         margins: {
           marginType: 'custom',
-          top: PDF_MARGINS_IN.top,
-          bottom: PDF_MARGINS_IN.bottom,
-          left: PDF_MARGINS_IN.left,
-          right: PDF_MARGINS_IN.right,
+          top: margins.top,
+          bottom: margins.bottom,
+          left: margins.left,
+          right: margins.right,
         },
       });
       await fs.writeFile(filePath, pdfBuffer);

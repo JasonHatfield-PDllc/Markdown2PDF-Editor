@@ -23,6 +23,30 @@ test.describe('Journey: print-ready layout', () => {
     expect(pdf.byteLength).toBeGreaterThan(500);
   });
 
+  test('last-page footer stays in-flow under print media; every-page uses fixed positioning', async ({
+    page,
+  }) => {
+    const app = new AppPage(page);
+    await app.goto();
+
+    await app.typeMarkdown('# Multi-page hint\n\nShort body.');
+    await app.setDisclaimer('Confidential — handle with care.');
+
+    await expect(page.locator('body')).not.toHaveClass(/m2pdf-footer-every-page/);
+
+    await page.emulateMedia({ media: 'print' });
+    await expect(app.printFooterBlock).toBeVisible();
+    await expect(app.printFooterBlock).toHaveCSS('position', 'static');
+
+    await page.emulateMedia({ media: 'screen' });
+    await app.setFooterRepeat('every');
+    await expect(page.locator('body')).toHaveClass(/m2pdf-footer-every-page/);
+
+    await page.emulateMedia({ media: 'print' });
+    await expect(app.printFooterBlock).toBeVisible();
+    await expect(app.printFooterBlock).toHaveCSS('position', 'fixed');
+  });
+
   test('Print button invokes the browser print pipeline after the document is prepared', async ({ page }) => {
     let printCalled = false;
     await page.exposeFunction('markPrinted', () => {
