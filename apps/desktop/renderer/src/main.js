@@ -433,11 +433,12 @@ const LOGO_JUSTIFY = {
   none: 'justify-start',
 };
 
+/** Match `#md-preview.prose.prose-sm` sizes from @tailwindcss/typography (14px base). */
 const TITLE_LEVEL_CLASS = {
-  h1: 'text-2xl font-semibold leading-tight text-slate-900',
-  h2: 'text-xl font-semibold leading-tight text-slate-900',
-  h3: 'text-lg font-semibold leading-tight text-slate-900',
-  p: 'text-base font-medium leading-snug text-slate-800',
+  h1: 'text-3xl font-semibold leading-[1.2] text-slate-900', // 30px — same as prose-sm h1
+  h2: 'text-xl font-semibold leading-[1.4] text-slate-900', // 20px
+  h3: 'text-lg font-semibold leading-[1.555] text-slate-900', // 18px
+  p: 'text-sm font-medium leading-relaxed text-slate-800', // 14px
 };
 
 const TITLE_ALIGN_JUSTIFY = {

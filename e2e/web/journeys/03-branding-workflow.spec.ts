@@ -90,6 +90,19 @@ test.describe('Journey: branded document', () => {
     await expect(app.brandHeaderTitle).toContainText('Board Packet');
     await expect(app.headerLogoColumn).toBeHidden();
 
+    await app.typeMarkdown('# Body Heading Match');
+    const sizes = await page.evaluate(() => {
+      const title = document.getElementById('brand-header-title');
+      const bodyH1 = document.querySelector('#md-preview h1');
+      if (!title || !bodyH1) return null;
+      return {
+        title: Number.parseFloat(getComputedStyle(title).fontSize),
+        body: Number.parseFloat(getComputedStyle(bodyH1).fontSize),
+      };
+    });
+    expect(sizes).not.toBeNull();
+    expect(sizes?.title).toBeCloseTo(sizes?.body ?? 0, 0);
+
     await page.getByLabel('Title placement').selectOption('center');
     await page.waitForTimeout(300);
     await expect(app.brandHeaderTitle).toHaveCSS('text-align', 'center');
