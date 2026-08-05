@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
-const fs = require('fs').promises;
+const fsSync = require('fs');
+const fs = fsSync.promises;
 
 const DEV_URL = 'http://127.0.0.1:5174';
 const MAX_MD_OPEN_BYTES = 2 * 1024 * 1024;
@@ -49,8 +50,23 @@ function getIndexPath() {
   return path.join(__dirname, '../dist/index.html');
 }
 
+/**
+ * Runtime icon must live under `electron/` (packaged in asar).
+ * `build/` is buildResources only — not shipped inside the app.
+ * Prefer .ico on Windows for title bar + taskbar.
+ */
 function getAppIconPath() {
-  return path.join(__dirname, '../build/icon.png');
+  const candidates = [
+    path.join(__dirname, 'assets', 'icon.ico'),
+    path.join(__dirname, 'assets', 'icon.png'),
+    // Dev/unpacked fallbacks when running from source near build/
+    path.join(__dirname, '../build/icon.ico'),
+    path.join(__dirname, '../build/icon.png'),
+  ];
+  for (const candidate of candidates) {
+    if (fsSync.existsSync(candidate)) return candidate;
+  }
+  return undefined;
 }
 
 /**
@@ -254,6 +270,7 @@ async function openPathFromOs(filePath, opts = {}) {
 }
 
 function createWindow() {
+  const icon = getAppIconPath();
   mainWindow = new BrowserWindow({
     width: 1320,
     height: 860,
@@ -261,7 +278,7 @@ function createWindow() {
     minHeight: 600,
     show: false,
     title: APP_DISPLAY_NAME,
-    icon: getAppIconPath(),
+    ...(icon ? { icon } : {}),
     autoHideMenuBar: false,
     webPreferences: {
       preload: getPreloadPath(),
