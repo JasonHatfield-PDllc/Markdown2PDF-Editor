@@ -2,6 +2,13 @@
 
 Electron shell for the downloadable Markdown → PDF Editor.
 
+## Features (desktop)
+
+- **Tabs** — multiple Markdown documents in one window
+- **File menu** — New, Open, Open Recent, Close, Save, Save As, Export PDF, Exit
+- **`.md` association** — double-click opens or focuses a tab (single instance)
+- Branding (logos, title, disclaimer) is **global** across tabs
+
 ## Dev
 
 From repo root:
@@ -30,8 +37,8 @@ Packaging under OneDrive can fail (missing `app-builder` binaries / sync conflic
 
 | Layer | Path |
 |-------|------|
-| Main process | `electron/main.cjs` — native dialogs, `printToPDF` |
+| Main process | `electron/main.cjs` — menu, dialogs, `printToPDF`, OS file open |
 | Preload | `electron/preload.cjs` — `window.desktopAPI` |
-| Renderer | `renderer/` — Vite + Tailwind, imports `@m2pdf/core` |
+| Renderer | `renderer/` — Vite + Tailwind, `@m2pdf/core`, session/tabs |
 
-See `docs/PHASE1-HANDOFF.md` for full handoff notes.
+See `docs/PHASE1-HANDOFF.md` for earlier handoff notes.

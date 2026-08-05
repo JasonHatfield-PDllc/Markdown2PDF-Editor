@@ -20,25 +20,35 @@ import {
   MAX_LOGO_DATA_URL_CHARS,
   addRecentLogoUrl,
   clearLogoSlot,
-  clearMarkdownDraft,
   loadBranding,
+  loadDesktopSession,
   loadFooterRepeat,
   loadLogoBundle,
   loadLogoLayout,
   loadMarkdownDraft,
   loadPageGuideSettings,
   loadPrintTitle,
+  loadRecentFiles,
   loadRecentLogoUrls,
   loadSidebarWidthPx,
+  saveDesktopSession,
   saveDisclaimer,
   saveFooterRepeat,
   saveLogoLayout,
   saveLogoSlot,
-  saveMarkdownDraft,
   savePageGuideSettings,
   savePrintTitle,
   saveSidebarWidthPx,
+  touchRecentFile,
 } from './storage.js';
+import {
+  createDocument,
+  createEmptySession,
+  ensureSession,
+  findDocumentByPath,
+  getActiveDocument,
+  normalizeSession,
+} from './session.js';
 
 const md = createMarkdownRenderer();
 
@@ -89,15 +99,70 @@ const el = {
   brandFooterLogoInner: document.getElementById('brand-footer-logo-inner'),
   brandLogoFooterImg: document.getElementById('brand-logo-footer-img'),
   disclaimerFooter: document.getElementById('disclaimer-footer'),
+  docTabs: document.getElementById('doc-tabs'),
 };
 
-/** Native path when Open / Save used the desktop file dialogs. */
-let mdFilePath = null;
-/** Default filename for Save As and the save picker. */
-let mdSuggestedFilename = 'document.md';
+/** @type {import('./session.js').AppSession} */
+let session = createEmptySession();
+
+function getActiveDoc() {
+  return getActiveDocument(session);
+}
 
 function getMdSourceText() {
   return el.textareaMd?.value ?? '';
+}
+
+/**
+ * Flush textarea into the active document (call before switching / persisting).
+ */
+function flushActiveEditorToSession() {
+  const doc = getActiveDoc();
+  if (!doc || !el.textareaMd) return;
+  const text = el.textareaMd.value;
+  if (doc.text !== text) {
+    doc.text = text;
+    doc.dirty = true;
+  }
+}
+
+function persistSession() {
+  flushActiveEditorToSession();
+  saveDesktopSession({
+    activeId: session.activeId,
+    docs: session.docs.map((d) => ({
+      id: d.id,
+      text: d.text,
+      path: d.path,
+      name: d.name,
+      dirty: d.dirty,
+    })),
+  });
+  syncRecentMenu();
+}
+
+function syncRecentMenu() {
+  const api = window.desktopAPI;
+  if (typeof api?.setRecentFiles === 'function') {
+    api.setRecentFiles(loadRecentFiles());
+  }
+}
+
+function syncMdSaveButton() {
+  // Always enabled — Save As runs when the tab has no path yet.
+  if (el.btnSaveMd) el.btnSaveMd.disabled = false;
+}
+
+/**
+ * Load active document into the editor + preview and refresh tabs.
+ */
+function syncEditorFromActiveDoc() {
+  const doc = getActiveDoc();
+  if (!doc || !el.textareaMd) return;
+  el.textareaMd.value = doc.text;
+  syncMdSaveButton();
+  renderTabs();
+  renderMarkdown();
 }
 
 /**
@@ -120,11 +185,6 @@ function setMdInputWarning(message) {
   n.classList.toggle('hidden', !message);
 }
 
-
-function syncMdSaveButton() {
-  if (el.btnSaveMd) el.btnSaveMd.disabled = !mdFilePath;
-}
-
 function normalizeMdSuggestedName(name) {
   let base = name?.trim() || 'document';
   const lower = base.toLowerCase();
@@ -135,34 +195,217 @@ function normalizeMdSuggestedName(name) {
   return `${base}.md`;
 }
 
-async function saveMdAs() {
-  const text = getMdSourceText();
-  const suggested = normalizeMdSuggestedName(mdSuggestedFilename);
-  const api = window.desktopAPI;
-  if (!api?.saveMarkdown) return;
-  const result = await api.saveMarkdown({ text, suggestedName: suggested });
-  if (result?.canceled) return;
+function renderTabs() {
+  const host = el.docTabs;
+  if (!host) return;
+  host.replaceChildren();
+  for (const doc of session.docs) {
+    const isActive = doc.id === session.activeId;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    btn.dataset.docId = doc.id;
+    btn.title = doc.path || doc.name;
+    btn.className = [
+      'group flex max-w-[12rem] shrink-0 items-center gap-1 rounded-t border px-2 py-1 text-left text-xs',
+      isActive
+        ? 'border-slate-300 border-b-white bg-white font-medium text-slate-900'
+        : 'border-transparent bg-transparent text-slate-600 hover:bg-slate-100',
+    ].join(' ');
+
+    const label = document.createElement('span');
+    label.className = 'truncate';
+    label.textContent = `${doc.dirty ? '• ' : ''}${doc.name}`;
+    btn.appendChild(label);
+
+    const close = document.createElement('span');
+    close.className =
+      'ml-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-700';
+    close.setAttribute('aria-label', `Close ${doc.name}`);
+    close.textContent = '×';
+    close.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeDocument(doc.id);
+    });
+    btn.appendChild(close);
+
+    btn.addEventListener('click', () => {
+      activateDocument(doc.id);
+    });
+    host.appendChild(btn);
+  }
+}
+
+/**
+ * @param {string} id
+ */
+function activateDocument(id) {
+  if (id === session.activeId) return;
+  if (!session.docs.some((d) => d.id === id)) return;
+  flushActiveEditorToSession();
+  session.activeId = id;
+  syncEditorFromActiveDoc();
+  persistSession();
+}
+
+function newDocument() {
+  flushActiveEditorToSession();
+  const doc = createDocument({ name: 'Untitled.md', dirty: false });
+  session.docs.push(doc);
+  session.activeId = doc.id;
+  syncEditorFromActiveDoc();
+  persistSession();
+}
+
+/**
+ * @param {string} id
+ */
+async function closeDocument(id) {
+  const doc = session.docs.find((d) => d.id === id);
+  if (!doc) return;
+
+  if (id === session.activeId) flushActiveEditorToSession();
+
+  if (doc.dirty) {
+    const api = window.desktopAPI;
+    const choice =
+      typeof api?.confirmDiscard === 'function'
+        ? await api.confirmDiscard(doc.name)
+        : window.confirm(`"${doc.name}" has unsaved changes. Close anyway?`)
+          ? 'discard'
+          : 'cancel';
+    if (choice === 'cancel') return;
+    if (choice === 'save') {
+      session.activeId = id;
+      syncEditorFromActiveDoc();
+      const saved = await saveMdOverwriteOrAs();
+      if (!saved) return;
+    }
+  }
+
+  session.docs = session.docs.filter((d) => d.id !== id);
+  if (!session.docs.length) {
+    session = createEmptySession();
+  } else if (!session.docs.some((d) => d.id === session.activeId)) {
+    session.activeId = session.docs[session.docs.length - 1].id;
+  }
+  session = ensureSession(session);
+  syncEditorFromActiveDoc();
+  persistSession();
+}
+
+/**
+ * Open or focus a document from disk / OS.
+ * @param {{ text?: string, path?: string | null, name?: string, error?: string }} result
+ */
+function openOrFocusDocument(result) {
   if (result?.error) {
     window.alert(result.error);
     return;
   }
-  if (result?.path) {
-    mdFilePath = result.path;
-    mdSuggestedFilename = result.name || mdSuggestedFilename;
-    syncMdSaveButton();
+  if (typeof result?.text !== 'string') return;
+
+  flushActiveEditorToSession();
+
+  const path = result.path || null;
+  if (path) {
+    const existing = findDocumentByPath(session, path);
+    if (existing) {
+      existing.text = result.text;
+      existing.name = result.name || existing.name;
+      existing.dirty = false;
+      session.activeId = existing.id;
+      touchRecentFile(path);
+      syncEditorFromActiveDoc();
+      persistSession();
+      return;
+    }
   }
+
+  const sole = session.docs.length === 1 ? session.docs[0] : null;
+  const reusable =
+    sole &&
+    !sole.path &&
+    !sole.dirty &&
+    !sole.text.trim() &&
+    sole.name === 'Untitled.md';
+
+  if (reusable) {
+    sole.text = result.text;
+    sole.path = path;
+    sole.name = result.name || 'Untitled.md';
+    sole.dirty = false;
+    session.activeId = sole.id;
+  } else {
+    const doc = createDocument({
+      text: result.text,
+      path,
+      name: result.name || 'Untitled.md',
+      dirty: false,
+    });
+    session.docs.push(doc);
+    session.activeId = doc.id;
+  }
+  if (path) touchRecentFile(path);
+  syncEditorFromActiveDoc();
+  persistSession();
+}
+
+async function saveMdAs() {
+  const doc = getActiveDoc();
+  if (!doc) return;
+  flushActiveEditorToSession();
+  const text = doc.text;
+  const suggested = normalizeMdSuggestedName(doc.name || 'document.md');
+  const api = window.desktopAPI;
+  if (!api?.saveMarkdown) return false;
+  const result = await api.saveMarkdown({ text, suggestedName: suggested });
+  if (result?.canceled) return false;
+  if (result?.error) {
+    window.alert(result.error);
+    return false;
+  }
+  if (result?.path) {
+    doc.path = result.path;
+    doc.name = result.name || doc.name;
+    doc.dirty = false;
+    touchRecentFile(result.path);
+    syncMdSaveButton();
+    renderTabs();
+    persistSession();
+    return true;
+  }
+  return false;
 }
 
 async function saveMdOverwrite() {
-  if (!mdFilePath) return;
+  const doc = getActiveDoc();
+  if (!doc?.path) return false;
+  flushActiveEditorToSession();
   const api = window.desktopAPI;
-  if (!api?.saveMarkdown) return;
-  const result = await api.saveMarkdown({ text: getMdSourceText(), path: mdFilePath });
+  if (!api?.saveMarkdown) return false;
+  const result = await api.saveMarkdown({ text: doc.text, path: doc.path });
   if (result?.error) {
     window.alert(result.error);
-    mdFilePath = null;
+    doc.path = null;
     syncMdSaveButton();
+    renderTabs();
+    return false;
   }
+  doc.dirty = false;
+  touchRecentFile(doc.path);
+  renderTabs();
+  persistSession();
+  return true;
+}
+
+/** @returns {Promise<boolean>} */
+async function saveMdOverwriteOrAs() {
+  const doc = getActiveDoc();
+  if (!doc) return false;
+  if (doc.path) return saveMdOverwrite();
+  return saveMdAs();
 }
 
 async function openMdViaFilePicker() {
@@ -175,57 +418,69 @@ async function openMdViaFilePicker() {
     return;
   }
   if (typeof result?.text === 'string') {
-    applyOpenedMarkdown(result);
+    openOrFocusDocument(result);
   }
 }
 
-/**
- * Load Markdown from Open dialog or OS file association (double-click).
- * Overrides any restored local draft.
- * @param {{ text?: string, path?: string | null, name?: string, error?: string }} result
- */
-function applyOpenedMarkdown(result) {
+async function openRecentPath(filePath) {
+  const api = window.desktopAPI;
+  if (!api?.openPath || !filePath) return;
+  const result = await api.openPath(filePath);
+  if (result?.canceled) return;
   if (result?.error) {
     window.alert(result.error);
     return;
   }
-  if (typeof result?.text !== 'string') return;
-  el.textareaMd.value = result.text;
-  mdFilePath = result.path ?? null;
-  mdSuggestedFilename = result.name || 'document.md';
-  syncMdSaveButton();
-  saveMarkdownDraft(result.text);
-  renderMarkdown();
+  if (typeof result?.text === 'string') {
+    openOrFocusDocument(result);
+  }
 }
 
 /**
- * Wire double-click / Open With launches from Windows into the editor.
+ * Wire double-click / Open With launches from Windows into tabs.
  */
 async function initDesktopOpenFromOs() {
   const api = window.desktopAPI;
   if (!api?.isDesktop) return;
 
   api.onOpenFromOs?.((payload) => {
-    applyOpenedMarkdown(payload ?? {});
+    openOrFocusDocument(payload ?? {});
   });
 
   if (typeof api.takeLaunchOpen === 'function') {
     try {
       const pending = await api.takeLaunchOpen();
-      if (pending) applyOpenedMarkdown(pending);
+      if (pending) openOrFocusDocument(pending);
     } catch {
       /* ignore */
     }
   }
 }
 
+function initDesktopMenu() {
+  const api = window.desktopAPI;
+  if (!api?.onMenuAction) return;
+  api.onMenuAction((action, payload) => {
+    if (action === 'new') newDocument();
+    else if (action === 'open') openMdViaFilePicker();
+    else if (action === 'close') closeDocument(session.activeId);
+    else if (action === 'save') saveMdOverwriteOrAs();
+    else if (action === 'save-as') saveMdAs();
+    else if (action === 'export-pdf') exportPdf();
+    else if (action === 'open-recent' && payload?.path) openRecentPath(payload.path);
+  });
+  syncRecentMenu();
+}
+
 async function exportPdf() {
   const api = window.desktopAPI;
   if (!api?.exportPdf) return;
+  flushActiveEditorToSession();
+  const doc = getActiveDoc();
   const paper = el.pageGuidePaper?.value;
   const result = await api.exportPdf({
     paper: paper === 'a4' || paper === 'legal' ? paper : 'letter',
-    suggestedName: mdSuggestedFilename,
+    suggestedName: doc?.name || 'document.md',
     footerRepeat: readFooterRepeatFromForm(),
   });
   if (result?.canceled) return;
@@ -869,8 +1124,9 @@ function debounce(fn, ms) {
 const persistDisclaimer = debounce(() => {
   saveDisclaimer(el.textareaDisclaimer.value);
 }, 400);
-const persistMarkdownDraft = debounce(() => {
-  saveMarkdownDraft(el.textareaMd?.value ?? '');
+const persistSessionDebounced = debounce(() => {
+  flushActiveEditorToSession();
+  persistSession();
 }, 400);
 const renderMarkdownDebounced = debounce(() => {
   renderMarkdown();
@@ -904,9 +1160,22 @@ function initFromStorage() {
   el.textareaDisclaimer.value = disclaimer;
   syncDisclaimerDisplay();
 
-  const draft = loadMarkdownDraft();
-  if (draft && el.textareaMd) {
-    el.textareaMd.value = draft;
+  const rawSession = loadDesktopSession();
+  const normalized = normalizeSession(rawSession);
+  if (normalized) {
+    session = ensureSession(normalized);
+  } else {
+    const legacy = loadMarkdownDraft();
+    if (legacy) {
+      const doc = createDocument({
+        text: legacy,
+        name: 'Untitled.md',
+        dirty: true,
+      });
+      session = { docs: [doc], activeId: doc.id };
+    } else {
+      session = createEmptySession();
+    }
   }
 
   applyFooterRepeatMode(loadFooterRepeat());
@@ -927,11 +1196,17 @@ function initFromStorage() {
   populateLogoRecentDatalist();
   applyLogoLayoutToForm(loadLogoLayout());
   applyLogoBranding();
+
+  syncEditorFromActiveDoc();
+  persistSession();
 }
 
 el.textareaMd.addEventListener('input', () => {
   renderMarkdownDebounced();
-  persistMarkdownDraft();
+  const doc = getActiveDoc();
+  if (doc) doc.dirty = true;
+  renderTabs();
+  persistSessionDebounced();
 });
 
 el.btnOpenMd?.addEventListener('click', () => {
@@ -939,16 +1214,19 @@ el.btnOpenMd?.addEventListener('click', () => {
 });
 
 el.btnClear.addEventListener('click', () => {
+  const doc = getActiveDoc();
+  if (!doc) return;
   el.textareaMd.value = '';
-  mdFilePath = null;
-  mdSuggestedFilename = 'document.md';
+  doc.text = '';
+  doc.dirty = true;
   syncMdSaveButton();
-  clearMarkdownDraft();
+  renderTabs();
+  persistSession();
   renderMarkdown();
 });
 
 el.btnSaveMd?.addEventListener('click', () => {
-  saveMdOverwrite();
+  saveMdOverwriteOrAs();
 });
 
 el.btnSaveAsMd?.addEventListener('click', () => {
@@ -1108,13 +1386,21 @@ function initMdToolbar() {
     else if (action === 'code') insertInlineCode(ta);
     else if (action === 'hr') insertHorizontalRule(ta);
     renderMarkdown();
-    saveMarkdownDraft(ta.value);
+    const doc = getActiveDoc();
+    if (doc) {
+      doc.text = ta.value;
+      doc.dirty = true;
+    }
+    renderTabs();
+    persistSession();
   });
 }
 
 initFromStorage();
 initSidebarResize();
 initMdToolbar();
+initDesktopMenu();
 initDesktopOpenFromOs().finally(() => {
   renderMarkdown();
+  renderTabs();
 });

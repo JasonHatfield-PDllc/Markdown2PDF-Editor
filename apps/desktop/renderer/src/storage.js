@@ -450,3 +450,85 @@ export function clearMarkdownDraft() {
   }
 }
 
+/** Desktop multi-doc session restore. */
+const KEY_DESKTOP_SESSION = 'm2pdf_desktop_session_v1';
+const KEY_DESKTOP_RECENT = 'm2pdf_desktop_recent_v1';
+const MAX_RECENT_FILES = 12;
+const MAX_SESSION_JSON_CHARS = 2_500_000;
+
+/**
+ * @returns {{ docs: Array<{ id: string, text: string, path: string | null, name: string, dirty: boolean }>, activeId: string } | null}
+ */
+export function loadDesktopSession() {
+  try {
+    const raw = localStorage.getItem(KEY_DESKTOP_SESSION);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.docs)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {{ docs: unknown[], activeId: string }} session
+ */
+export function saveDesktopSession(session) {
+  try {
+    const json = JSON.stringify(session);
+    if (json.length > MAX_SESSION_JSON_CHARS) return;
+    localStorage.setItem(KEY_DESKTOP_SESSION, json);
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export function clearDesktopSession() {
+  try {
+    localStorage.removeItem(KEY_DESKTOP_SESSION);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** @returns {string[]} */
+export function loadRecentFiles() {
+  try {
+    const raw = localStorage.getItem(KEY_DESKTOP_RECENT);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((p) => typeof p === 'string' && p.trim()).slice(0, MAX_RECENT_FILES);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * @param {string[]} paths
+ */
+export function saveRecentFiles(paths) {
+  try {
+    const list = (Array.isArray(paths) ? paths : [])
+      .filter((p) => typeof p === 'string' && p.trim())
+      .slice(0, MAX_RECENT_FILES);
+    localStorage.setItem(KEY_DESKTOP_RECENT, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Move path to front of recent list.
+ * @param {string} filePath
+ * @returns {string[]}
+ */
+export function touchRecentFile(filePath) {
+  if (!filePath || typeof filePath !== 'string') return loadRecentFiles();
+  const prev = loadRecentFiles().filter((p) => p.toLowerCase() !== filePath.toLowerCase());
+  const next = [filePath, ...prev].slice(0, MAX_RECENT_FILES);
+  saveRecentFiles(next);
+  return next;
+}
+

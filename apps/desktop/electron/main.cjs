@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -30,9 +30,11 @@ const PAGE_SIZE_MAP = {
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
 
+/** @type {string[]} */
+let recentFiles = [];
+
 /**
- * File opened via OS association / argv. Kept until the renderer consumes it
- * (and resent on second-instance while the app is already running).
+ * File opened via OS association / argv. Kept until the renderer consumes it.
  * @type {{ text: string, path: string, name: string } | null}
  */
 let pendingOpenPayload = null;
@@ -46,8 +48,104 @@ function getIndexPath() {
 }
 
 /**
+ * @param {string} action
+ * @param {Record<string, unknown>} [payload]
+ */
+function sendMenuAction(action, payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('desktop:menu', { action, payload });
+}
+
+function buildAppMenu() {
+  /** @type {Electron.MenuItemConstructorOptions[]} */
+  const recentItems =
+    recentFiles.length > 0
+      ? recentFiles.map((filePath) => ({
+          label: filePath,
+          click: () => sendMenuAction('open-recent', { path: filePath }),
+        }))
+      : [{ label: '(No recent files)', enabled: false }];
+
+  const template = [
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => sendMenuAction('new'),
+        },
+        {
+          label: 'Open…',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => sendMenuAction('open'),
+        },
+        {
+          label: 'Open Recent',
+          submenu: recentItems,
+        },
+        { type: 'separator' },
+        {
+          label: 'Close',
+          accelerator: 'CmdOrCtrl+W',
+          click: () => sendMenuAction('close'),
+        },
+        {
+          label: 'Save',
+          accelerator: 'CmdOrCtrl+S',
+          click: () => sendMenuAction('save'),
+        },
+        {
+          label: 'Save As…',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          click: () => sendMenuAction('save-as'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Export PDF…',
+          accelerator: 'CmdOrCtrl+E',
+          click: () => sendMenuAction('export-pdf'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Exit',
+          accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Alt+F4',
+          click: () => app.quit(),
+        },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+/**
  * Windows / Electron: double-click passes the file path in argv.
- * Skip flags (including Electron/Chromium ones) and resolve .md/.markdown/.txt.
  * @param {string[]} argv
  * @returns {string | null}
  */
@@ -91,7 +189,6 @@ async function readMarkdownFile(filePath) {
 }
 
 /**
- * Read a path and deliver it to the renderer (or queue until take-launch-open).
  * @param {string} filePath
  * @param {{ focus?: boolean }} [opts]
  */
@@ -113,7 +210,6 @@ async function openPathFromOs(filePath, opts = {}) {
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.focus();
       }
-      // Window already live (second-instance or slow file read): push event.
       if (!mainWindow.webContents.isLoading()) {
         pendingOpenPayload = null;
         mainWindow.webContents.send('desktop:open-from-os', payload);
@@ -121,7 +217,6 @@ async function openPathFromOs(filePath, opts = {}) {
       }
     }
 
-    // Cold start while the renderer is still loading — renderer will takeLaunchOpen().
     pendingOpenPayload = payload;
   } catch (err) {
     dialog.showErrorBox(
@@ -138,7 +233,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
@@ -178,6 +273,48 @@ function registerIpc() {
     const payload = pendingOpenPayload;
     pendingOpenPayload = null;
     return payload;
+  });
+
+  ipcMain.handle('desktop:set-recent-files', (_event, paths) => {
+    recentFiles = Array.isArray(paths)
+      ? paths.filter((p) => typeof p === 'string' && p.trim()).slice(0, 12)
+      : [];
+    buildAppMenu();
+    return { ok: true };
+  });
+
+  ipcMain.handle('desktop:confirm-discard', async (event, fileName) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const name = typeof fileName === 'string' && fileName.trim() ? fileName.trim() : 'Untitled.md';
+    const { response } = await dialog.showMessageBox(win ?? undefined, {
+      type: 'warning',
+      buttons: ['Save', "Don't Save", 'Cancel'],
+      defaultId: 0,
+      cancelId: 2,
+      title: 'Unsaved changes',
+      message: `"${name}" has unsaved changes.`,
+      detail: 'Do you want to save before closing?',
+      noLink: true,
+    });
+    if (response === 0) return 'save';
+    if (response === 1) return 'discard';
+    return 'cancel';
+  });
+
+  ipcMain.handle('desktop:open-path', async (_event, filePath) => {
+    if (typeof filePath !== 'string' || !filePath.trim()) {
+      return { canceled: true };
+    }
+    try {
+      const result = await readMarkdownFile(path.resolve(filePath));
+      if (!result.ok) return { canceled: false, error: result.error };
+      return { canceled: false, ...result };
+    } catch (err) {
+      return {
+        canceled: false,
+        error: err instanceof Error ? err.message : 'Could not open file.',
+      };
+    }
   });
 
   ipcMain.handle('desktop:open-markdown', async (event) => {
@@ -283,6 +420,7 @@ if (!gotSingleInstanceLock) {
 
   app.whenReady().then(async () => {
     registerIpc();
+    buildAppMenu();
     const launchPath = findMarkdownPathFromArgv(process.argv);
     createWindow();
     if (launchPath) {
