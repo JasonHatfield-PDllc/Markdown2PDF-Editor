@@ -30,12 +30,105 @@ const PAGE_SIZE_MAP = {
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
 
+/**
+ * File opened via OS association / argv. Kept until the renderer consumes it
+ * (and resent on second-instance while the app is already running).
+ * @type {{ text: string, path: string, name: string } | null}
+ */
+let pendingOpenPayload = null;
+
 function getPreloadPath() {
   return path.join(__dirname, 'preload.cjs');
 }
 
 function getIndexPath() {
   return path.join(__dirname, '../dist/index.html');
+}
+
+/**
+ * Windows / Electron: double-click passes the file path in argv.
+ * Skip flags (including Electron/Chromium ones) and resolve .md/.markdown/.txt.
+ * @param {string[]} argv
+ * @returns {string | null}
+ */
+function findMarkdownPathFromArgv(argv) {
+  if (!Array.isArray(argv) || argv.length < 2) return null;
+  for (const raw of argv.slice(1)) {
+    if (!raw || typeof raw !== 'string') continue;
+    const arg = raw.replace(/^["']|["']$/g, '');
+    if (!arg || arg.startsWith('-')) continue;
+    const lower = arg.toLowerCase();
+    if (
+      lower.endsWith('.md') ||
+      lower.endsWith('.markdown') ||
+      lower.endsWith('.txt')
+    ) {
+      return path.resolve(arg);
+    }
+  }
+  return null;
+}
+
+/**
+ * @param {string} filePath
+ * @returns {Promise<{ ok: true, text: string, path: string, name: string } | { ok: false, error: string }>}
+ */
+async function readMarkdownFile(filePath) {
+  const stat = await fs.stat(filePath);
+  if (stat.size > MAX_MD_OPEN_BYTES) {
+    return {
+      ok: false,
+      error: `File is too large (${Math.round(stat.size / 1024)} KB). Max is ${MAX_MD_OPEN_BYTES / (1024 * 1024)} MB.`,
+    };
+  }
+  const text = await fs.readFile(filePath, 'utf8');
+  return {
+    ok: true,
+    text,
+    path: filePath,
+    name: path.basename(filePath),
+  };
+}
+
+/**
+ * Read a path and deliver it to the renderer (or queue until take-launch-open).
+ * @param {string} filePath
+ * @param {{ focus?: boolean }} [opts]
+ */
+async function openPathFromOs(filePath, opts = {}) {
+  try {
+    const result = await readMarkdownFile(filePath);
+    if (!result.ok) {
+      dialog.showErrorBox('Could not open Markdown file', result.error);
+      return;
+    }
+    const payload = {
+      text: result.text,
+      path: result.path,
+      name: result.name,
+    };
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (opts.focus) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
+      // Window already live (second-instance or slow file read): push event.
+      if (!mainWindow.webContents.isLoading()) {
+        pendingOpenPayload = null;
+        mainWindow.webContents.send('desktop:open-from-os', payload);
+        return;
+      }
+    }
+
+    // Cold start while the renderer is still loading — renderer will takeLaunchOpen().
+    pendingOpenPayload = payload;
+  } catch (err) {
+    dialog.showErrorBox(
+      'Could not open Markdown file',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 }
 
 function createWindow() {
@@ -65,27 +158,6 @@ function createWindow() {
   }
 }
 
-/**
- * @param {string} filePath
- * @returns {Promise<{ ok: true, text: string, path: string, name: string } | { ok: false, error: string }>}
- */
-async function readMarkdownFile(filePath) {
-  const stat = await fs.stat(filePath);
-  if (stat.size > MAX_MD_OPEN_BYTES) {
-    return {
-      ok: false,
-      error: `File is too large (${Math.round(stat.size / 1024)} KB). Max is ${MAX_MD_OPEN_BYTES / (1024 * 1024)} MB.`,
-    };
-  }
-  const text = await fs.readFile(filePath, 'utf8');
-  return {
-    ok: true,
-    text,
-    path: filePath,
-    name: path.basename(filePath),
-  };
-}
-
 function normalizeMdSuggestedName(name) {
   let base = name?.trim() || 'document';
   const lower = base.toLowerCase();
@@ -102,6 +174,12 @@ function suggestedPdfName(mdName) {
 }
 
 function registerIpc() {
+  ipcMain.handle('desktop:take-launch-open', () => {
+    const payload = pendingOpenPayload;
+    pendingOpenPayload = null;
+    return payload;
+  });
+
   ipcMain.handle('desktop:open-markdown', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const { canceled, filePaths } = await dialog.showOpenDialog(win ?? undefined, {
@@ -187,14 +265,35 @@ function registerIpc() {
   });
 }
 
-app.whenReady().then(() => {
-  registerIpc();
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv) => {
+    const filePath = findMarkdownPathFromArgv(argv);
+    if (filePath) {
+      openPathFromOs(filePath, { focus: true });
+      return;
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
   });
-});
+
+  app.whenReady().then(async () => {
+    registerIpc();
+    const launchPath = findMarkdownPathFromArgv(process.argv);
+    createWindow();
+    if (launchPath) {
+      await openPathFromOs(launchPath);
+    }
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

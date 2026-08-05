@@ -175,12 +175,47 @@ async function openMdViaFilePicker() {
     return;
   }
   if (typeof result?.text === 'string') {
-    el.textareaMd.value = result.text;
-    mdFilePath = result.path ?? null;
-    mdSuggestedFilename = result.name || 'document.md';
-    syncMdSaveButton();
-    saveMarkdownDraft(result.text);
-    renderMarkdown();
+    applyOpenedMarkdown(result);
+  }
+}
+
+/**
+ * Load Markdown from Open dialog or OS file association (double-click).
+ * Overrides any restored local draft.
+ * @param {{ text?: string, path?: string | null, name?: string, error?: string }} result
+ */
+function applyOpenedMarkdown(result) {
+  if (result?.error) {
+    window.alert(result.error);
+    return;
+  }
+  if (typeof result?.text !== 'string') return;
+  el.textareaMd.value = result.text;
+  mdFilePath = result.path ?? null;
+  mdSuggestedFilename = result.name || 'document.md';
+  syncMdSaveButton();
+  saveMarkdownDraft(result.text);
+  renderMarkdown();
+}
+
+/**
+ * Wire double-click / Open With launches from Windows into the editor.
+ */
+async function initDesktopOpenFromOs() {
+  const api = window.desktopAPI;
+  if (!api?.isDesktop) return;
+
+  api.onOpenFromOs?.((payload) => {
+    applyOpenedMarkdown(payload ?? {});
+  });
+
+  if (typeof api.takeLaunchOpen === 'function') {
+    try {
+      const pending = await api.takeLaunchOpen();
+      if (pending) applyOpenedMarkdown(pending);
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -1080,4 +1115,6 @@ function initMdToolbar() {
 initFromStorage();
 initSidebarResize();
 initMdToolbar();
-renderMarkdown();
+initDesktopOpenFromOs().finally(() => {
+  renderMarkdown();
+});
