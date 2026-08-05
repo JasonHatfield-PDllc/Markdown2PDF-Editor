@@ -33,7 +33,12 @@ Output: `apps/desktop/release/Markdown2PDF-0.1.0-Setup.exe`
 
 Packaging under OneDrive can fail (missing `app-builder` binaries / sync conflicts). Prefer this path or CI.
 
-App identity: product name **Markdown2PDF**, window/taskbar label from Electron `app.setName` + `appUserModelId`. Installer/exe icon from `apps/desktop/build/icon.ico`; window/taskbar icon from `apps/desktop/electron/assets/icon.ico` (must be under `electron/` so it ships in the asar). Packed builds disable DevTools.
+App identity: product name **Markdown2PDF**, window/taskbar label from Electron `app.setName` + `appUserModelId`.
+
+- Window title-bar icon: `electron/assets/icon.ico` (must ship in the asar).
+- Taskbar / Explorer `.exe` icon: `build/icon.ico` embedded into `Markdown2PDF.exe` by `scripts/afterPack.cjs` (rcedit). `signAndEditExecutable` stays `false` to avoid winCodeSign symlink failures on Windows without Developer Mode.
+
+Packed builds disable DevTools.
 
 ## Architecture
 
