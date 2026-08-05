@@ -29,9 +29,11 @@ npm ci
 npm run pack:desktop
 ```
 
-Output: `apps/desktop/release/Markdown2PDF Editor-0.1.0-Setup.exe`
+Output: `apps/desktop/release/Markdown2PDF-0.1.0-Setup.exe`
 
 Packaging under OneDrive can fail (missing `app-builder` binaries / sync conflicts). Prefer this path or CI.
+
+App identity: product name **Markdown2PDF**, window/taskbar label from Electron `app.setName` + `appUserModelId`, icon from `apps/desktop/build/icon.png` (Pragmatic Disruptor mark). Packed builds disable DevTools.
 
 ## Architecture
 

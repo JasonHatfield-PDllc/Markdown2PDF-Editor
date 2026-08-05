@@ -1,9 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 
 const DEV_URL = 'http://127.0.0.1:5174';
 const MAX_MD_OPEN_BYTES = 2 * 1024 * 1024;
+const APP_DISPLAY_NAME = 'Markdown2PDF';
+const IS_DEV = process.env.M2PDF_ELECTRON_DEV === '1';
 
 /** Match @page margins in renderer CSS (mm → inches). */
 const PDF_MARGINS_IN = {
@@ -47,6 +49,10 @@ function getIndexPath() {
   return path.join(__dirname, '../dist/index.html');
 }
 
+function getAppIconPath() {
+  return path.join(__dirname, '../build/icon.png');
+}
+
 /**
  * @param {string} action
  * @param {Record<string, unknown>} [payload]
@@ -66,6 +72,7 @@ function buildAppMenu() {
         }))
       : [{ label: '(No recent files)', enabled: false }];
 
+  /** @type {Electron.MenuItemConstructorOptions[]} */
   const template = [
     {
       label: 'File',
@@ -129,14 +136,34 @@ function buildAppMenu() {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
         { role: 'zoomOut' },
         { type: 'separator' },
         { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Visit Markdown2PDF site',
+          click: () => {
+            shell.openExternal('https://www.pragmaticdisruptor.com/markdown2pdf-overview');
+          },
+        },
+        {
+          label: 'Privacy Notice',
+          click: () => {
+            shell.openExternal('https://www.pragmaticdisruptor.com/privacynotice');
+          },
+        },
+        {
+          label: 'Contact Us',
+          click: () => {
+            shell.openExternal('https://www.pragmaticdisruptor.com/contact-jason');
+          },
+        },
       ],
     },
   ];
@@ -233,20 +260,31 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     show: false,
+    title: APP_DISPLAY_NAME,
+    icon: getAppIconPath(),
     autoHideMenuBar: false,
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      devTools: IS_DEV,
     },
   });
+
+  mainWindow.setTitle(APP_DISPLAY_NAME);
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
   });
 
-  if (process.env.M2PDF_ELECTRON_DEV === '1') {
+  // Keep product title (don't let the HTML <title> rename the window).
+  mainWindow.on('page-title-updated', (event) => {
+    event.preventDefault();
+    mainWindow?.setTitle(APP_DISPLAY_NAME);
+  });
+
+  if (IS_DEV) {
     mainWindow.loadURL(DEV_URL);
   } else {
     mainWindow.loadFile(getIndexPath());
@@ -417,6 +455,12 @@ if (!gotSingleInstanceLock) {
       mainWindow.focus();
     }
   });
+
+  // Before ready: name Windows uses for taskbar / jump list (avoids bare "Electron").
+  app.setName(APP_DISPLAY_NAME);
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.pragmaticdisruptor.markdown2pdf');
+  }
 
   app.whenReady().then(async () => {
     registerIpc();
