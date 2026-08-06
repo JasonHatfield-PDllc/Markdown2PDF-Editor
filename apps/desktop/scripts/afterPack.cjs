@@ -35,8 +35,7 @@ exports.default = async function afterPack(context) {
   const version = info.version || '0.0.0';
   const winVersion = toWindowsFileVersion(version);
   const company = 'Pragmatic Disruptor, LLC.';
-  const copyright =
-    info.copyright || `Copyright © ${new Date().getUTCFullYear()} ${company}`;
+  const copyright = `Copyright (c) ${new Date().getUTCFullYear()} ${company}`;
 
   if (!fs.existsSync(exePath)) {
     throw new Error(`[afterPack] missing executable: ${exePath}`);
