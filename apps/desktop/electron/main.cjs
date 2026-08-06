@@ -169,6 +169,12 @@ function buildAppMenu() {
           },
         },
         {
+          label: 'Terms of Use',
+          click: () => {
+            shell.openExternal('https://www.pragmaticdisruptor.com/terms-of-use');
+          },
+        },
+        {
           label: 'Privacy Notice',
           click: () => {
             shell.openExternal('https://www.pragmaticdisruptor.com/privacynotice');

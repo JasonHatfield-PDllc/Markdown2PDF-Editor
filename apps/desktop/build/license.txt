@@ -1,0 +1,33 @@
+Markdown2PDF
+Copyright (c) Pragmatic Disruptor, LLC. All rights reserved.
+
+IMPORTANT — PLEASE READ
+
+By installing or using Markdown2PDF (the "Software"), you agree to the
+Terms of Use of Pragmatic Disruptor, LLC, available at:
+
+  https://www.pragmaticdisruptor.com/terms-of-use
+
+and acknowledge the Privacy Notice at:
+
+  https://www.pragmaticdisruptor.com/privacynotice
+
+If you do not agree to those Terms, do not install or use the Software.
+
+SUMMARY (not a substitute for the full Terms)
+
+- The Software is proprietary to Pragmatic Disruptor, LLC.
+- You receive a limited, non-exclusive, non-transferable, revocable license
+  for personal or internal business use, subject to the Terms.
+- Reverse engineering, unauthorized redistribution, and removing notices
+  are prohibited as described in the Terms.
+- The Software is provided "AS IS" and "AS AVAILABLE," with disclaimers and
+  liability limits set out in the Terms.
+- Your content (Markdown, logos, PDFs you create) remains yours; processing
+  is designed to occur on your device as described in the Privacy Notice.
+
+Open-source components bundled with Electron/Chromium are licensed under
+their respective licenses (see LICENSE.electron.txt and
+LICENSES.chromium.html installed with the application).
+
+For questions: Support@PragmaticDisruptor.com

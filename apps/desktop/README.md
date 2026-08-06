@@ -37,8 +37,9 @@ App identity: product name **Markdown2PDF**, window/taskbar label from Electron 
 
 - Window title-bar icon: `electron/assets/icon.ico` (must ship in the asar).
 - Taskbar / Explorer `.exe` icon: `build/icon.ico` embedded into `Markdown2PDF.exe` by `scripts/afterPack.cjs` (rcedit). `signAndEditExecutable` stays `false` to avoid winCodeSign symlink failures on Windows without Developer Mode.
+- Installer license page: `build/license.txt` (NSIS) points to the site [Terms of Use](https://www.pragmaticdisruptor.com/terms-of-use) and Privacy Notice. Help menu opens the same Terms URL.
 
-Packed builds disable DevTools.
+Packed builds disable DevTools. The desktop package is proprietary (`license: UNLICENSED`); Electron/Chromium notices still ship with the app.
 
 ## Architecture
 

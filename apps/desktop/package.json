@@ -4,6 +4,7 @@
   "private": true,
   "description": "Markdown2PDF — Markdown to PDF editor for Windows",
   "author": "Pragmatic Disruptor, LLC.",
+  "license": "UNLICENSED",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -78,7 +79,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Markdown2PDF"
+      "shortcutName": "Markdown2PDF",
+      "license": "build/license.txt"
     }
   }
 }
