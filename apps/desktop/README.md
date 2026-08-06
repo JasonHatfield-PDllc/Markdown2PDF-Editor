@@ -36,7 +36,7 @@ Packaging under OneDrive can fail (missing `app-builder` binaries / sync conflic
 App identity: product name **Markdown2PDF**, window/taskbar label from Electron `app.setName` + `appUserModelId`.
 
 - Window title-bar icon: `electron/assets/icon.ico` (must ship in the asar).
-- Taskbar / Explorer `.exe` icon: `build/icon.ico` embedded into `Markdown2PDF.exe` by `scripts/afterPack.cjs` (rcedit). `signAndEditExecutable` stays `false` to avoid winCodeSign symlink failures on Windows without Developer Mode.
+- Taskbar / Explorer `.exe` icon: `build/icon.ico` embedded into `Markdown2PDF.exe` by `scripts/afterPack.cjs` (rcedit). Same hook stamps VersionInfo (Company, Product, versions) so Windows Properties does not show Electron/GitHub. `signAndEditExecutable` stays `false` to avoid winCodeSign symlink failures on Windows without Developer Mode. Authenticode signing is still separate (see Azure Artifact Signing when you budget ~$120/yr for the LLC).
 - Installer license page: `build/license.txt` (NSIS) points to the site [Terms of Use](https://www.pragmaticdisruptor.com/terms-of-use) and Privacy Notice. Help menu opens the same Terms URL.
 
 Packed builds disable DevTools. The desktop package is proprietary (`license: UNLICENSED`); Electron/Chromium notices still ship with the app.
