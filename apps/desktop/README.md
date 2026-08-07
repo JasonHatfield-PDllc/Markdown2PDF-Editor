@@ -30,7 +30,7 @@ npm ci
 npm run pack:desktop
 ```
 
-Output: `apps/desktop/release/Markdown2PDF-0.1.0-Setup.exe`
+Output: `apps/desktop/release/Markdown2PDF-0.1.3-Setup.exe`
 
 Packaging under OneDrive can fail (missing `app-builder` binaries / sync conflicts). Prefer this path or CI.
 

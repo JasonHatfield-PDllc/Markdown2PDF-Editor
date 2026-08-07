@@ -1,7 +1,7 @@
 Markdown2PDF
 Copyright (c) Pragmatic Disruptor, LLC. All rights reserved.
 
-IMPORTANT — PLEASE READ
+IMPORTANT -- PLEASE READ
 
 By installing or using Markdown2PDF (the "Software"), you agree to the
 Terms of Use of Pragmatic Disruptor, LLC, available at:
