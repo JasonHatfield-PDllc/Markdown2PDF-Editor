@@ -46,15 +46,32 @@
   word-break: break-word;
 }
 
+/* Fill the BrowserWindow client area; never scroll the document itself. */
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
 /* Default sidebar width; JS may override with --m2pdf-sidebar in px after drag. */
 #app-shell {
   --m2pdf-sidebar: 22rem;
+  height: 100%;
+  max-height: 100%;
 }
 
 body.m2pdf-resizing,
 body.m2pdf-resizing * {
   cursor: col-resize !important;
   user-select: none !important;
+}
+
+/* Centred modal dialogs (Find / Replace). */
+dialog.m2pdf-dlg::backdrop {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+dialog.m2pdf-dlg:focus {
+  outline: none;
 }
 
 /*
@@ -82,13 +99,17 @@ body.m2pdf-resizing * {
     display: none !important;
   }
 
+  html,
   body {
+    height: auto !important;
+    overflow: visible !important;
     background: white !important;
   }
 
   /* Undo viewport lock so long documents print in full. */
   #app-shell {
     height: auto !important;
+    max-height: none !important;
     min-height: 0 !important;
     overflow: visible !important;
   }

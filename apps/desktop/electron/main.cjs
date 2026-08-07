@@ -147,6 +147,27 @@ function buildAppMenu() {
         { role: 'copy' },
         { role: 'paste' },
         { role: 'selectAll' },
+        { type: 'separator' },
+        {
+          label: 'Find…',
+          accelerator: 'CmdOrCtrl+F',
+          click: () => sendMenuAction('find'),
+        },
+        {
+          label: 'Find Next',
+          accelerator: 'F3',
+          click: () => sendMenuAction('find-next'),
+        },
+        {
+          label: 'Find Previous',
+          accelerator: 'Shift+F3',
+          click: () => sendMenuAction('find-previous'),
+        },
+        {
+          label: 'Replace…',
+          accelerator: 'CmdOrCtrl+H',
+          click: () => sendMenuAction('replace'),
+        },
       ],
     },
     {

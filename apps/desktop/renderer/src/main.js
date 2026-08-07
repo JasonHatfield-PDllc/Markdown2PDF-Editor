@@ -49,6 +49,7 @@ import {
   getActiveDocument,
   normalizeSession,
 } from './session.js';
+import { initFindReplaceUi } from './findReplace.js';
 
 const md = createMarkdownRenderer();
 
@@ -457,6 +458,9 @@ async function initDesktopOpenFromOs() {
   }
 }
 
+/** @type {ReturnType<typeof initFindReplaceUi> | null} */
+let findReplaceApi = null;
+
 function initDesktopMenu() {
   const api = window.desktopAPI;
   if (!api?.onMenuAction) return;
@@ -468,6 +472,10 @@ function initDesktopMenu() {
     else if (action === 'save-as') saveMdAs();
     else if (action === 'export-pdf') exportPdf();
     else if (action === 'open-recent' && payload?.path) openRecentPath(payload.path);
+    else if (action === 'find') findReplaceApi?.openFind();
+    else if (action === 'find-next') findReplaceApi?.findNext();
+    else if (action === 'find-previous') findReplaceApi?.findPrevious();
+    else if (action === 'replace') findReplaceApi?.openReplace();
   });
   syncRecentMenu();
 }
@@ -1399,6 +1407,9 @@ function initMdToolbar() {
 initFromStorage();
 initSidebarResize();
 initMdToolbar();
+findReplaceApi = initFindReplaceUi({
+  getTextarea: () => el.textareaMd,
+});
 initDesktopMenu();
 initDesktopOpenFromOs().finally(() => {
   renderMarkdown();

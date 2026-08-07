@@ -7,6 +7,7 @@ Electron shell for the downloadable Markdown → PDF Editor.
 - **Tabs** — multiple Markdown documents in one window
 - **File menu** — New, Open, Open Recent, Close, Save, Save As, Export PDF, Exit
 - **`.md` association** — double-click opens or focuses a tab (single instance)
+- **Find / Replace** — Edit menu (Ctrl+F / F3 / Shift+F3 / Ctrl+H); Markdown editor only
 - Branding (logos, title, disclaimer) is **global** across tabs
 
 ## Dev

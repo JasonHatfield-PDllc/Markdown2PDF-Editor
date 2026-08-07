@@ -6,7 +6,12 @@
     <meta name="color-scheme" content="light" />
     <title>Markdown2PDF</title>
   </head>
-  <body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+  <!--
+    Desktop Electron: use height:100% (not min-h-screen / 100dvh). With a native
+    menu bar, 100dvh can exceed the webContents client area and create a fourth
+    document scrollbar plus dead white space when maximized.
+  -->
+  <body class="h-full overflow-hidden bg-slate-100 text-slate-900 antialiased">
     <a
       href="#main-preview"
       class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded focus:bg-white focus:px-4 focus:py-2 focus:shadow focus:outline focus:outline-2 focus:outline-pd-primary"
@@ -14,10 +19,10 @@
       Skip to preview
     </a>
 
-    <!-- Viewport-height shell: only the preview pane scrolls; controls stay visible. -->
+    <!-- Viewport-height shell: only the preview pane / sidebar list scroll. -->
     <div
       id="app-shell"
-      class="flex h-[100dvh] min-h-0 flex-col overflow-hidden lg:flex-row"
+      class="flex h-full min-h-0 flex-col overflow-hidden lg:flex-row"
     >
       <!-- Controls: hidden when printing -->
       <aside
@@ -535,6 +540,114 @@
         </div>
       </main>
     </div>
+
+    <!-- Notepad-style Find / Replace (Markdown editor only). -->
+    <dialog
+      id="dlg-find"
+      class="m2pdf-dlg w-[min(100vw-2rem,22rem)] rounded-lg border border-slate-300 bg-white p-4 shadow-lg text-slate-900"
+      aria-labelledby="dlg-find-title"
+    >
+      <form method="dialog" class="space-y-3" onsubmit="return false">
+        <h2 id="dlg-find-title" class="text-sm font-semibold text-slate-800">Find</h2>
+        <label class="block text-xs text-slate-600" for="find-query">Find what:</label>
+        <input
+          id="find-query"
+          type="text"
+          class="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+          <input id="find-match-case" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+          Match case
+        </label>
+        <p id="find-status" class="min-h-[1rem] text-xs text-slate-500" role="status"></p>
+        <div class="flex flex-wrap justify-end gap-2 pt-1">
+          <button
+            id="find-prev"
+            type="button"
+            class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Find Previous
+          </button>
+          <button
+            id="find-next"
+            type="button"
+            class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+          >
+            Find Next
+          </button>
+          <button
+            id="find-close"
+            type="button"
+            class="rounded border border-slate-300 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog
+      id="dlg-replace"
+      class="m2pdf-dlg w-[min(100vw-2rem,24rem)] rounded-lg border border-slate-300 bg-white p-4 shadow-lg text-slate-900"
+      aria-labelledby="dlg-replace-title"
+    >
+      <form method="dialog" class="space-y-3" onsubmit="return false">
+        <h2 id="dlg-replace-title" class="text-sm font-semibold text-slate-800">Replace</h2>
+        <label class="block text-xs text-slate-600" for="replace-query">Find what:</label>
+        <input
+          id="replace-query"
+          type="text"
+          class="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <label class="block text-xs text-slate-600" for="replace-with">Replace with:</label>
+        <input
+          id="replace-with"
+          type="text"
+          class="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+          <input id="replace-match-case" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+          Match case
+        </label>
+        <p id="replace-status" class="min-h-[1rem] text-xs text-slate-500" role="status"></p>
+        <div class="flex flex-wrap justify-end gap-2 pt-1">
+          <button
+            id="replace-find-next"
+            type="button"
+            class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Find Next
+          </button>
+          <button
+            id="replace-one"
+            type="button"
+            class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Replace
+          </button>
+          <button
+            id="replace-all"
+            type="button"
+            class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Replace All
+          </button>
+          <button
+            id="replace-close"
+            type="button"
+            class="rounded border border-slate-300 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </dialog>
 
     <script type="module" src="/src/main.js"></script>
   </body>
