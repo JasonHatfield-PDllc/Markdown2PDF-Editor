@@ -328,6 +328,31 @@ function createWindow() {
     mainWindow?.setTitle(APP_DISPLAY_NAME);
   });
 
+  // Electron does not show a default edit context menu; provide Cut/Copy/Paste/Select All.
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    /** @type {Electron.MenuItemConstructorOptions[]} */
+    const template = [];
+
+    if (params.isEditable) {
+      template.push(
+        { role: 'undo', enabled: params.editFlags.canUndo },
+        { role: 'redo', enabled: params.editFlags.canRedo },
+        { type: 'separator' },
+        { role: 'cut', enabled: params.editFlags.canCut },
+        { role: 'copy', enabled: params.editFlags.canCopy },
+        { role: 'paste', enabled: params.editFlags.canPaste },
+        { role: 'delete', enabled: params.editFlags.canDelete },
+        { type: 'separator' },
+        { role: 'selectAll', enabled: params.editFlags.canSelectAll },
+      );
+    } else if (params.selectionText?.trim()) {
+      template.push({ role: 'copy', enabled: params.editFlags.canCopy });
+    }
+
+    if (template.length === 0) return;
+    Menu.buildFromTemplate(template).popup({ window: mainWindow ?? undefined });
+  });
+
   if (IS_DEV) {
     mainWindow.loadURL(DEV_URL);
   } else {
