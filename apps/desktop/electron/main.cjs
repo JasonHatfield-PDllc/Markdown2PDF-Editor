@@ -16,11 +16,11 @@ const PDF_MARGINS_IN = {
   left: 14 / 25.4,
 };
 
-/** Every-page footer mode: larger bottom margin for the repeating brand strip. */
+/** Every-page footer mode: match CSS PAGE_MARGIN_MM_EVERY_PAGE (28mm). */
 const PDF_MARGINS_EVERY_PAGE_IN = {
   top: 16 / 25.4,
   right: 14 / 25.4,
-  bottom: 40 / 25.4,
+  bottom: 28 / 25.4,
   left: 14 / 25.4,
 };
 
@@ -207,6 +207,11 @@ function buildAppMenu() {
             shell.openExternal('https://www.pragmaticdisruptor.com/contact-jason');
           },
         },
+        { type: 'separator' },
+        {
+          label: 'About Markdown2PDF',
+          click: () => sendMenuAction('about'),
+        },
       ],
     },
   ];
@@ -353,6 +358,32 @@ function createWindow() {
     Menu.buildFromTemplate(template).popup({ window: mainWindow ?? undefined });
   });
 
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    const reason = details?.reason || 'unknown';
+    dialog.showErrorBox(
+      'Markdown2PDF stopped unexpectedly',
+      `The editor process ended (${reason}). Your drafts may still be in local browser storage — reopen the app and check recent files.\n\nIf this keeps happening, contact support via Help → Contact Us.`,
+    );
+  });
+  mainWindow.webContents.on('unresponsive', () => {
+    dialog
+      .showMessageBox(mainWindow, {
+        type: 'warning',
+        title: 'Markdown2PDF is not responding',
+        message: 'The window is not responding. Wait, or close and reopen the app.',
+        buttons: ['Wait', 'Close window'],
+        defaultId: 0,
+        cancelId: 0,
+      })
+      .then(({ response }) => {
+        if (response === 1 && mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.destroy();
+          createWindow();
+        }
+      })
+      .catch(() => {});
+  });
+
   if (IS_DEV) {
     mainWindow.loadURL(DEV_URL);
   } else {
@@ -376,6 +407,12 @@ function suggestedPdfName(mdName) {
 }
 
 function registerIpc() {
+  ipcMain.handle('desktop:app-info', () => ({
+    name: APP_DISPLAY_NAME,
+    version: app.getVersion(),
+    creator: 'Pragmatic Disruptor LLC',
+  }));
+
   ipcMain.handle('desktop:take-launch-open', () => {
     const payload = pendingOpenPayload;
     pendingOpenPayload = null;
@@ -472,12 +509,58 @@ function registerIpc() {
     }
   });
 
+  /**
+   * Shared Chromium print options — Export PDF and live Preview must stay identical.
+   * @param {{ paper?: string, footerRepeat?: string }} payload
+   */
+  function printToPdfOptions(payload) {
+    // CSS `@page` is the sole margin authority (`none`). `default`/`custom` fight
+    // `@page` and push body text under the every-page footer.
+    void PDF_MARGINS_IN;
+    void PDF_MARGINS_EVERY_PAGE_IN;
+    // eslint-disable-next-line global-require
+    return require('./printToPdfOptions.cjs').printToPdfOptions(payload ?? {}, PAGE_SIZE_MAP);
+  }
+
+  /** Serialize printToPDF so live Preview and Export never overlap on one WebContents. */
+  /** @type {Promise<unknown>} */
+  let printPdfChain = Promise.resolve();
+  /**
+   * @template T
+   * @param {() => Promise<T>} fn
+   * @returns {Promise<T>}
+   */
+  function withPrintPdfLock(fn) {
+    const run = printPdfChain.then(fn, fn);
+    printPdfChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  /** Live View: same printToPDF as Export, no save dialog — returns base64 PDF. */
+  ipcMain.handle('desktop:preview-pdf', async (event, payload) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return { ok: false, error: 'No window.' };
+    return withPrintPdfLock(async () => {
+      try {
+        const pdfBuffer = await win.webContents.printToPDF(printToPdfOptions(payload ?? {}));
+        return {
+          ok: true,
+          pdfBase64: pdfBuffer.toString('base64'),
+          byteLength: pdfBuffer.byteLength,
+        };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'Preview PDF failed.' };
+      }
+    });
+  });
+
   ipcMain.handle('desktop:export-pdf', async (event, payload) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return { canceled: true, error: 'No window.' };
 
-    const paper = payload?.paper === 'a4' || payload?.paper === 'legal' ? payload.paper : 'letter';
-    const pageSize = PAGE_SIZE_MAP[paper] ?? 'Letter';
     const suggested = suggestedPdfName(payload?.suggestedName || 'document.md');
 
     const { canceled, filePath } = await dialog.showSaveDialog(win, {
@@ -487,25 +570,15 @@ function registerIpc() {
     });
     if (canceled || !filePath) return { canceled: true };
 
-    try {
-      const margins =
-        payload?.footerRepeat === 'every' ? PDF_MARGINS_EVERY_PAGE_IN : PDF_MARGINS_IN;
-      const pdfBuffer = await win.webContents.printToPDF({
-        printBackground: true,
-        pageSize,
-        margins: {
-          marginType: 'custom',
-          top: margins.top,
-          bottom: margins.bottom,
-          left: margins.left,
-          right: margins.right,
-        },
-      });
-      await fs.writeFile(filePath, pdfBuffer);
-      return { canceled: false, path: filePath };
-    } catch (err) {
-      return { canceled: false, error: err instanceof Error ? err.message : 'PDF export failed.' };
-    }
+    return withPrintPdfLock(async () => {
+      try {
+        const pdfBuffer = await win.webContents.printToPDF(printToPdfOptions(payload ?? {}));
+        await fs.writeFile(filePath, pdfBuffer);
+        return { canceled: false, path: filePath };
+      } catch (err) {
+        return { canceled: false, error: err instanceof Error ? err.message : 'PDF export failed.' };
+      }
+    });
   });
 }
 

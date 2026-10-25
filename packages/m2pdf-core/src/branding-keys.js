@@ -1,7 +1,10 @@
-/** localStorage keys used by the web app (src/storage.js). Desktop will use file-based prefs with the same schema. */
+/** localStorage keys used by web (`src/storage.js`) and desktop renderer. Keep in sync. */
 
 export const STORAGE_KEYS = {
   disclaimer: 'm2pdf_disclaimer_v1',
+  footerRepeat: 'm2pdf_footer_repeat_v1',
+  footerPageNum: 'm2pdf_footer_pagenum_v1',
+  footerTextAlign: 'm2pdf_footer_text_align_v1',
   sidebarWidthPx: 'm2pdf_sidebar_width_px_v1',
   logoState: 'm2pdf_logo_state_v1',
   logoRecent: 'm2pdf_logo_recent_v1',

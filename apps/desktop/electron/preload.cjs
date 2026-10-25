@@ -2,10 +2,13 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('desktopAPI', {
   isDesktop: true,
+  getAppInfo: () => ipcRenderer.invoke('desktop:app-info'),
   openMarkdown: () => ipcRenderer.invoke('desktop:open-markdown'),
   openPath: (filePath) => ipcRenderer.invoke('desktop:open-path', filePath),
   saveMarkdown: (payload) => ipcRenderer.invoke('desktop:save-markdown', payload),
   exportPdf: (payload) => ipcRenderer.invoke('desktop:export-pdf', payload),
+  /** Same printToPDF options as exportPdf; returns { ok, pdfBase64 } for live View. */
+  previewPdf: (payload) => ipcRenderer.invoke('desktop:preview-pdf', payload),
   setRecentFiles: (paths) => ipcRenderer.invoke('desktop:set-recent-files', paths),
   confirmDiscard: (fileName) => ipcRenderer.invoke('desktop:confirm-discard', fileName),
   /** Cold-start file from OS association (consumes pending payload). */

@@ -1,6 +1,9 @@
 /** Shared localStorage keys — must match src/storage.js and @m2pdf/core branding-keys. */
 export const STORAGE_KEYS = {
   disclaimer: 'm2pdf_disclaimer_v1',
+  footerRepeat: 'm2pdf_footer_repeat_v1',
+  footerPageNum: 'm2pdf_footer_pagenum_v1',
+  footerTextAlign: 'm2pdf_footer_text_align_v1',
   logoState: 'm2pdf_logo_state_v1',
   logoLayout: 'm2pdf_logo_layout_v1',
   pageGuide: 'm2pdf_page_guide_v1',

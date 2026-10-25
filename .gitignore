@@ -5,6 +5,7 @@ dist/
 
 # Playwright
 /playwright-report/
+/playwright-report-pdf-audit/
 /blob-report/
 /test-results/
 /playwright/.cache/

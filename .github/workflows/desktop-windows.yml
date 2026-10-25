@@ -36,9 +36,16 @@ jobs:
       - name: Build desktop renderer
         run: npm run build -w markdown2pdf-desktop
 
+      - name: Prefer B Electron PDF audit
+        run: npm run test:pdf-audit:electron
+
+      - name: Prefer B text-layer audit
+        run: npm run test:pdf-audit:textlayer
+
       - name: Package Windows installer
         env:
           # Unsigned CI builds — avoid winCodeSign symlink privilege failures on Windows runners.
+          # Signing: see docs/windows-signing-cost-strategy.md (Azure Artifact Signing when monetizing).
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run pack -w markdown2pdf-desktop
 

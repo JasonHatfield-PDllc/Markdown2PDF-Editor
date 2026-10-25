@@ -1,6 +1,16 @@
 /**
- * Notepad-style Find / Replace for the Markdown editor textarea (desktop).
+ * Notepad-style Find / Replace — modeless bars; edit while searching.
  */
+
+import {
+  clearEditorFindHighlights,
+  paintEditorFindHighlights,
+  scrollTextareaToOffset,
+  syncEditorFindScroll,
+} from './findEditorOverlay.js';
+import { clearPreviewFindHighlights, countPreviewMatches, findInPreview } from './findPreview.js';
+
+/** @typedef {'editor' | 'preview' | 'both'} FindScope */
 
 /** @type {string} */
 let lastQuery = '';
@@ -8,29 +18,65 @@ let lastQuery = '';
 /** @type {boolean} */
 let lastMatchCase = false;
 
+/** @type {FindScope} */
+let lastSearchScope = 'editor';
+
+/** Index for preview-only navigation. */
+let previewMatchIndex = -1;
+
+/** Flat index across source matches then preview matches (both mode). */
+let bothFlatIndex = -1;
+
+/**
+ * @param {HTMLTextAreaElement} ta
+ * @param {string} query
+ * @param {boolean} matchCase
+ * @returns {number[]}
+ */
+function listEditorMatchStarts(ta, query, matchCase) {
+  const q = query ?? '';
+  if (!ta || !q) return [];
+  const text = ta.value;
+  const hay = matchCase ? text : text.toLowerCase();
+  const needle = matchCase ? q : q.toLowerCase();
+  /** @type {number[]} */
+  const starts = [];
+  let from = 0;
+  while (from <= hay.length) {
+    const idx = hay.indexOf(needle, from);
+    if (idx < 0) break;
+    starts.push(idx);
+    from = idx + (needle.length || 1);
+  }
+  return starts;
+}
+
 /**
  * @param {HTMLTextAreaElement} ta
  * @param {number} start
  * @param {number} end
  */
-function selectRange(ta, start, end) {
+function selectRange(ta, start, end, opts = {}) {
+  const prev = document.activeElement;
+  // Focus textarea so setSelectionRange + scroll apply; restore Find bar focus after if needed.
   ta.focus();
   ta.setSelectionRange(start, end);
-  // Approximate scroll-into-view for the caret line.
-  const before = ta.value.slice(0, start);
-  const lineIndex = before.split('\n').length - 1;
-  const styles = window.getComputedStyle(ta);
-  const lineHeight = Number.parseFloat(styles.lineHeight) || 16;
-  const paddingTop = Number.parseFloat(styles.paddingTop) || 0;
-  const target = paddingTop + lineIndex * lineHeight - ta.clientHeight / 3;
-  ta.scrollTop = Math.max(0, target);
+  scrollTextareaToOffset(ta, start);
+  if (opts.keepFocus && prev instanceof HTMLElement && prev !== ta) {
+    prev.focus({ preventScroll: true });
+  }
+  requestAnimationFrame(() => {
+    ta.setSelectionRange(start, end);
+    scrollTextareaToOffset(ta, start);
+    syncEditorFindScroll(ta);
+  });
 }
 
 /**
  * @param {HTMLTextAreaElement} ta
  * @param {string} query
- * @param {{ matchCase?: boolean, reverse?: boolean, fromSelection?: boolean }} [opts]
- * @returns {boolean} true if a match was selected
+ * @param {{ matchCase?: boolean, reverse?: boolean, fromSelection?: boolean, keepFocus?: boolean, paint?: boolean }} [opts]
+ * @returns {boolean}
  */
 export function findInEditor(ta, query, opts = {}) {
   const q = query ?? '';
@@ -38,6 +84,7 @@ export function findInEditor(ta, query, opts = {}) {
 
   const matchCase = Boolean(opts.matchCase);
   const reverse = Boolean(opts.reverse);
+  const keepFocus = Boolean(opts.keepFocus);
   const text = ta.value;
   const hay = matchCase ? text : text.toLowerCase();
   const needle = matchCase ? q : q.toLowerCase();
@@ -53,28 +100,24 @@ export function findInEditor(ta, query, opts = {}) {
 
   let idx = reverse ? hay.lastIndexOf(needle, from) : hay.indexOf(needle, from);
 
-  // Wrap around (Notepad-style).
   if (idx < 0) {
     idx = reverse ? hay.lastIndexOf(needle) : hay.indexOf(needle);
-    if (idx < 0) return false;
-    // Avoid false "success" if we only re-selected the same match mid-search without wrap sense —
-    // wrap is intentional; notify caller via return true.
+    if (idx < 0) {
+      if (opts.paint !== false) clearEditorFindHighlights(ta);
+      return false;
+    }
   }
 
   lastQuery = q;
   lastMatchCase = matchCase;
-  selectRange(ta, idx, idx + q.length);
+  selectRange(ta, idx, idx + q.length, { keepFocus });
+  if (opts.paint !== false) {
+    paintEditorFindHighlights(ta, q, matchCase, idx);
+    scrollTextareaToOffset(ta, idx);
+  }
   return true;
 }
 
-/**
- * Replace current selection if it matches query; otherwise Find Next then replace if found.
- * @param {HTMLTextAreaElement} ta
- * @param {string} query
- * @param {string} replacement
- * @param {{ matchCase?: boolean }} [opts]
- * @returns {'replaced' | 'not-found'}
- */
 export function replaceInEditor(ta, query, replacement, opts = {}) {
   const q = query ?? '';
   if (!ta || !q) return 'not-found';
@@ -94,19 +137,11 @@ export function replaceInEditor(ta, query, replacement, opts = {}) {
 
   if (!findInEditor(ta, q, { matchCase, reverse: false })) return 'not-found';
   const start = ta.selectionStart;
-  const end = ta.selectionEnd;
-  ta.setRangeText(replacement, start, end, 'end');
+  ta.setRangeText(replacement, start, ta.selectionEnd, 'end');
   ta.dispatchEvent(new Event('input', { bubbles: true }));
   return 'replaced';
 }
 
-/**
- * @param {HTMLTextAreaElement} ta
- * @param {string} query
- * @param {string} replacement
- * @param {{ matchCase?: boolean }} [opts]
- * @returns {number} count replaced
- */
 export function replaceAllInEditor(ta, query, replacement, opts = {}) {
   const q = query ?? '';
   if (!ta || !q) return 0;
@@ -159,21 +194,25 @@ export function replaceAllInEditor(ta, query, replacement, opts = {}) {
 }
 
 export function getLastFindState() {
-  return { query: lastQuery, matchCase: lastMatchCase };
+  return { query: lastQuery, matchCase: lastMatchCase, scope: lastSearchScope };
 }
 
 /**
- * @param {{ getTextarea: () => HTMLTextAreaElement | null }} api
+ * @param {{
+ *   getTextarea: () => HTMLTextAreaElement | null,
+ *   getPreviewRoot?: () => HTMLElement | null,
+ *   onPreviewFindResult?: (info: { query: string, matchCount: number, activeIndex: number }) => void,
+ *   getDefaultSearchTarget?: () => 'editor' | 'preview',
+ * }} api
  */
 export function initFindReplaceUi(api) {
-  const findDlg = /** @type {HTMLDialogElement | null} */ (document.getElementById('dlg-find'));
-  const replaceDlg = /** @type {HTMLDialogElement | null} */ (
-    document.getElementById('dlg-replace')
-  );
-  if (!findDlg || !replaceDlg) return;
+  const findBar = document.getElementById('find-bar');
+  const replaceBar = document.getElementById('replace-bar');
+  if (!findBar || !replaceBar) return;
 
   const findInput = /** @type {HTMLInputElement} */ (document.getElementById('find-query'));
   const findMatchCase = /** @type {HTMLInputElement} */ (document.getElementById('find-match-case'));
+  const findScope = /** @type {HTMLSelectElement} */ (document.getElementById('find-scope'));
   const findStatus = document.getElementById('find-status');
 
   const replaceFindInput = /** @type {HTMLInputElement} */ (
@@ -185,13 +224,46 @@ export function initFindReplaceUi(api) {
   const replaceMatchCase = /** @type {HTMLInputElement} */ (
     document.getElementById('replace-match-case')
   );
+  const replaceScope = /** @type {HTMLSelectElement} */ (document.getElementById('replace-scope'));
   const replaceStatus = document.getElementById('replace-status');
 
-  /**
-   * @param {HTMLElement | null} el
-   * @param {string} msg
-   * @param {boolean} [isError]
-   */
+  const isFindOpen = () => !findBar.classList.contains('hidden');
+  const isReplaceOpen = () => !replaceBar.classList.contains('hidden');
+  const isAnyFindUiOpen = () => isFindOpen() || isReplaceOpen;
+
+  /** @returns {FindScope} */
+  function readScopeFromFindUi() {
+    const v = findScope?.value;
+    if (v === 'preview' || v === 'both') return v;
+    return 'editor';
+  }
+
+  /** @returns {FindScope} */
+  function readScopeFromReplaceUi() {
+    const v = replaceScope?.value;
+    if (v === 'preview' || v === 'both') return v;
+    return 'editor';
+  }
+
+  /** @returns {FindScope} */
+  function resolveScope() {
+    if (isFindOpen()) return readScopeFromFindUi();
+    if (isReplaceOpen()) return readScopeFromReplaceUi();
+    return lastSearchScope;
+  }
+
+  /** @param {FindScope} scope */
+  function setScopeOnBothSelects(scope) {
+    const v = scope === 'preview' || scope === 'both' ? scope : 'editor';
+    if (findScope) findScope.value = v;
+    if (replaceScope) replaceScope.value = v;
+  }
+
+  /** @param {'editor' | 'preview'} pane */
+  function defaultScopeFromPane(pane) {
+    return pane === 'preview' ? 'preview' : 'editor';
+  }
+
   function setStatus(el, msg, isError = false) {
     if (!el) return;
     el.textContent = msg;
@@ -200,72 +272,310 @@ export function initFindReplaceUi(api) {
   }
 
   function syncFromLast(intoFind) {
-    const { query, matchCase } = getLastFindState();
+    const { query, matchCase, scope } = getLastFindState();
     if (intoFind) {
       if (findInput && query) findInput.value = query;
       if (findMatchCase) findMatchCase.checked = matchCase;
+      setScopeOnBothSelects(scope);
     } else {
       if (replaceFindInput && query) replaceFindInput.value = query;
       if (replaceMatchCase) replaceMatchCase.checked = matchCase;
+      setScopeOnBothSelects(scope);
     }
   }
 
+  function closeFindBar() {
+    findBar.classList.add('hidden');
+    clearEditorFindHighlights(api.getTextarea());
+    if (!isReplaceOpen()) clearPreviewFindHighlights();
+  }
+
+  function closeReplaceBar() {
+    replaceBar.classList.add('hidden');
+    clearEditorFindHighlights(api.getTextarea());
+    if (!isFindOpen()) clearPreviewFindHighlights();
+  }
+
+  /**
+   * @param {string} q
+   * @param {boolean} matchCase
+   * @param {FindScope} scope
+   * @param {number} editorActive
+   * @param {number} previewActive
+   */
+  function paintForScope(q, matchCase, scope, editorActive, previewActive) {
+    const ta = api.getTextarea();
+    const root = api.getPreviewRoot?.();
+
+    if (scope === 'editor' || scope === 'both') {
+      if (ta && q) paintEditorFindHighlights(ta, q, matchCase, editorActive);
+      else clearEditorFindHighlights(ta);
+    } else {
+      clearEditorFindHighlights(ta);
+    }
+
+    if (scope === 'preview' || scope === 'both') {
+      if (root && q) {
+        findInPreview(root, q, { matchCase, matchIndex: Math.max(0, previewActive) });
+        const matchCount = countPreviewMatches(root, q, matchCase);
+        api.onPreviewFindResult?.({
+          query: q,
+          matchCount,
+          activeIndex: Math.max(0, previewActive),
+        });
+      } else {
+        clearPreviewFindHighlights();
+        api.onPreviewFindResult?.({ query: q, matchCount: 0, activeIndex: -1 });
+      }
+    } else {
+      clearPreviewFindHighlights();
+    }
+  }
+
+  /**
+   * @param {string} q
+   * @param {boolean} matchCase
+   * @param {FindScope} scope
+   * @param {boolean} reverse
+   */
+  function runBothModeFind(q, matchCase, reverse) {
+    const ta = api.getTextarea();
+    const root = api.getPreviewRoot?.();
+    if (!ta || !q) return false;
+
+    const editorStarts = listEditorMatchStarts(ta, q, matchCase);
+    const previewCount = root ? countPreviewMatches(root, q, matchCase) : 0;
+    const total = editorStarts.length + previewCount;
+    if (!total) {
+      clearEditorFindHighlights(ta);
+      clearPreviewFindHighlights();
+      return false;
+    }
+
+    if (bothFlatIndex < 0) bothFlatIndex = reverse ? total - 1 : 0;
+    else if (reverse) bothFlatIndex -= 1;
+    else bothFlatIndex += 1;
+
+    while (bothFlatIndex < 0) bothFlatIndex += total;
+    bothFlatIndex %= total;
+
+    lastQuery = q;
+    lastMatchCase = matchCase;
+    lastSearchScope = 'both';
+
+    if (bothFlatIndex < editorStarts.length) {
+      const start = editorStarts[bothFlatIndex];
+      selectRange(ta, start, start + q.length, { keepFocus: isAnyFindUiOpen() });
+      paintEditorFindHighlights(ta, q, matchCase, start);
+      if (root && previewCount) {
+        findInPreview(root, q, { matchCase, matchIndex: 0 });
+      } else {
+        clearPreviewFindHighlights();
+      }
+    } else {
+      const pIdx = bothFlatIndex - editorStarts.length;
+      previewMatchIndex = pIdx;
+      if (editorStarts.length) {
+        paintEditorFindHighlights(ta, q, matchCase, editorStarts[0]);
+      } else {
+        clearEditorFindHighlights(ta);
+      }
+      if (root) findInPreview(root, q, { matchCase, matchIndex: pIdx });
+    }
+    return true;
+  }
+
+  /**
+   * @param {string} q
+   * @param {boolean} matchCase
+   * @param {boolean} reverse
+   * @param {FindScope} scope
+   */
+  function runFindOnScope(q, matchCase, reverse, scope) {
+    lastSearchScope = scope;
+    lastQuery = q;
+    lastMatchCase = matchCase;
+
+    if (!q) {
+      clearEditorFindHighlights(api.getTextarea());
+      clearPreviewFindHighlights();
+      return false;
+    }
+
+    if (scope === 'both') {
+      return runBothModeFind(q, matchCase, reverse);
+    }
+
+    bothFlatIndex = -1;
+
+    if (scope === 'preview') {
+      const root = api.getPreviewRoot?.();
+      if (!root) return false;
+      clearEditorFindHighlights(api.getTextarea());
+      if (reverse) previewMatchIndex -= 1;
+      else previewMatchIndex = previewMatchIndex < 0 ? 0 : previewMatchIndex + 1;
+      const ok = findInPreview(root, q, {
+        matchCase,
+        reverse,
+        matchIndex: previewMatchIndex,
+      });
+      if (!ok) previewMatchIndex = -1;
+      const matchCount = countPreviewMatches(root, q, matchCase);
+      api.onPreviewFindResult?.({
+        query: q,
+        matchCount,
+        activeIndex: ok ? Math.max(0, previewMatchIndex) : -1,
+      });
+      return ok;
+    }
+
+    previewMatchIndex = -1;
+    clearPreviewFindHighlights();
+    const ta = api.getTextarea();
+    if (!ta) return false;
+    return findInEditor(ta, q, {
+      matchCase,
+      reverse,
+      keepFocus: isAnyFindUiOpen(),
+    });
+  }
+
+  function refreshFindHighlightsFromDialog() {
+    if (!isAnyFindUiOpen()) return;
+
+    const scope = isFindOpen() ? readScopeFromFindUi() : readScopeFromReplaceUi();
+    const q = isFindOpen() ? (findInput?.value ?? '') : (replaceFindInput?.value ?? '');
+    const matchCase = isFindOpen()
+      ? Boolean(findMatchCase?.checked)
+      : Boolean(replaceMatchCase?.checked);
+
+    previewMatchIndex = 0;
+    bothFlatIndex = 0;
+
+    if (!q) {
+      clearEditorFindHighlights(api.getTextarea());
+      clearPreviewFindHighlights();
+      return;
+    }
+
+    if (scope === 'both') {
+      const ta = api.getTextarea();
+      const root = api.getPreviewRoot?.();
+      const editorStarts = ta ? listEditorMatchStarts(ta, q, matchCase) : [];
+      if (editorStarts.length && ta) {
+        selectRange(ta, editorStarts[0], editorStarts[0] + q.length, { keepFocus: true });
+        paintForScope(q, matchCase, 'both', editorStarts[0], 0);
+      } else if (root && countPreviewMatches(root, q, matchCase)) {
+        findInPreview(root, q, { matchCase, matchIndex: 0 });
+        clearEditorFindHighlights(ta);
+      }
+      return;
+    }
+
+    if (scope === 'preview') {
+      clearEditorFindHighlights(api.getTextarea());
+      const root = api.getPreviewRoot?.();
+      if (root) findInPreview(root, q, { matchCase, matchIndex: 0 });
+      return;
+    }
+
+    clearPreviewFindHighlights();
+    const ta = api.getTextarea();
+    if (!ta) return;
+    findInEditor(ta, q, {
+      matchCase,
+      reverse: false,
+      fromSelection: false,
+      keepFocus: true,
+    });
+  }
+
   function openFind() {
-    if (replaceDlg.open) replaceDlg.close();
+    closeReplaceBar();
     syncFromLast(true);
+    previewMatchIndex = -1;
+    bothFlatIndex = -1;
+    const pane = api.getDefaultSearchTarget?.() ?? 'editor';
+    if (lastSearchScope === 'editor' && pane === 'preview') {
+      setScopeOnBothSelects('preview');
+    } else if (lastSearchScope === 'editor') {
+      setScopeOnBothSelects(defaultScopeFromPane(pane));
+    }
     const ta = api.getTextarea();
     const sel = ta?.value.slice(ta.selectionStart, ta.selectionEnd) ?? '';
-    if (sel && !sel.includes('\n') && findInput) findInput.value = sel;
+    const scope = readScopeFromFindUi();
+    if (sel && !sel.includes('\n') && findInput && (scope === 'editor' || scope === 'both')) {
+      findInput.value = sel;
+    }
     setStatus(findStatus, '');
-    findDlg.showModal();
+    findBar.classList.remove('hidden');
     findInput?.focus();
     findInput?.select();
+    refreshFindHighlightsFromDialog();
   }
 
   function openReplace() {
-    if (findDlg.open) findDlg.close();
+    closeFindBar();
     syncFromLast(false);
+    previewMatchIndex = -1;
+    bothFlatIndex = -1;
     const ta = api.getTextarea();
     const sel = ta?.value.slice(ta.selectionStart, ta.selectionEnd) ?? '';
     if (sel && !sel.includes('\n') && replaceFindInput) replaceFindInput.value = sel;
     setStatus(replaceStatus, '');
-    replaceDlg.showModal();
+    replaceBar.classList.remove('hidden');
     replaceFindInput?.focus();
     replaceFindInput?.select();
+    refreshFindHighlightsFromDialog();
   }
 
   function runFind(reverse) {
-    const ta = api.getTextarea();
-    if (!ta) return;
     const q = findInput?.value ?? '';
-    const ok = findInEditor(ta, q, {
-      matchCase: findMatchCase?.checked,
-      reverse,
-    });
+    const matchCase = Boolean(findMatchCase?.checked);
+    const scope = readScopeFromFindUi();
+    if (scope !== 'both' && scope !== 'preview') previewMatchIndex = -1;
+    if (scope !== 'both') bothFlatIndex = -1;
+    if (scope === 'preview') {
+      if (reverse) previewMatchIndex -= 1;
+      else previewMatchIndex = previewMatchIndex < 0 ? 0 : previewMatchIndex + 1;
+    }
+    const ok = runFindOnScope(q, matchCase, reverse, scope);
+    if (!ok) {
+      previewMatchIndex = -1;
+      bothFlatIndex = -1;
+      if (scope === 'editor' || scope === 'both') clearEditorFindHighlights(api.getTextarea());
+    }
     setStatus(findStatus, ok ? '' : `Cannot find "${q}"`, !ok);
   }
 
   function runReplaceFind(reverse) {
+    const q = replaceFindInput?.value ?? '';
+    const matchCase = Boolean(replaceMatchCase?.checked);
+    const scope = readScopeFromReplaceUi();
+    if (scope === 'both') {
+      const ok = runBothModeFind(q, matchCase, reverse);
+      setStatus(replaceStatus, ok ? '' : `Cannot find "${q}"`, !ok);
+      return;
+    }
+    if (scope === 'preview') {
+      if (reverse) previewMatchIndex -= 1;
+      else previewMatchIndex = previewMatchIndex < 0 ? 0 : previewMatchIndex + 1;
+      const root = api.getPreviewRoot?.();
+      const ok = root
+        ? findInPreview(root, q, { matchCase, reverse, matchIndex: previewMatchIndex })
+        : false;
+      setStatus(replaceStatus, ok ? '' : `Cannot find "${q}"`, !ok);
+      return;
+    }
     const ta = api.getTextarea();
     if (!ta) return;
-    const q = replaceFindInput?.value ?? '';
-    const ok = findInEditor(ta, q, {
-      matchCase: replaceMatchCase?.checked,
-      reverse,
-    });
+    const ok = findInEditor(ta, q, { matchCase, reverse, keepFocus: true });
     setStatus(replaceStatus, ok ? '' : `Cannot find "${q}"`, !ok);
   }
 
   document.getElementById('find-next')?.addEventListener('click', () => runFind(false));
   document.getElementById('find-prev')?.addEventListener('click', () => runFind(true));
-  document.getElementById('find-close')?.addEventListener('click', () => findDlg.close());
-
-  findInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      runFind(e.shiftKey);
-    }
-  });
+  document.getElementById('find-close')?.addEventListener('click', () => closeFindBar());
 
   document.getElementById('replace-find-next')?.addEventListener('click', () => runReplaceFind(false));
   document.getElementById('replace-one')?.addEventListener('click', () => {
@@ -280,6 +590,7 @@ export function initFindReplaceUi(api) {
       result === 'replaced' ? '' : `Cannot find "${q}"`,
       result !== 'replaced',
     );
+    refreshFindHighlightsFromDialog();
   });
   document.getElementById('replace-all')?.addEventListener('click', () => {
     const ta = api.getTextarea();
@@ -293,8 +604,39 @@ export function initFindReplaceUi(api) {
       n === 0 ? `Cannot find "${q}"` : `Replaced ${n} occurrence${n === 1 ? '' : 's'}.`,
       n === 0,
     );
+    refreshFindHighlightsFromDialog();
   });
-  document.getElementById('replace-close')?.addEventListener('click', () => replaceDlg.close());
+  document.getElementById('replace-close')?.addEventListener('click', () => closeReplaceBar());
+
+  findInput?.addEventListener('input', () => refreshFindHighlightsFromDialog());
+  replaceFindInput?.addEventListener('input', () => refreshFindHighlightsFromDialog());
+  findMatchCase?.addEventListener('change', () => refreshFindHighlightsFromDialog());
+  replaceMatchCase?.addEventListener('change', () => refreshFindHighlightsFromDialog());
+  findScope?.addEventListener('change', () => {
+    previewMatchIndex = -1;
+    bothFlatIndex = -1;
+    if (replaceScope) replaceScope.value = findScope.value;
+    refreshFindHighlightsFromDialog();
+  });
+  replaceScope?.addEventListener('change', () => {
+    previewMatchIndex = -1;
+    bothFlatIndex = -1;
+    if (findScope) findScope.value = replaceScope.value;
+    refreshFindHighlightsFromDialog();
+  });
+
+  api.getTextarea()?.addEventListener('input', () => {
+    if (isAnyFindUiOpen()) refreshFindHighlightsFromDialog();
+  });
+
+  findInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      bothFlatIndex = -1;
+      previewMatchIndex = -1;
+      runFind(e.shiftKey);
+    }
+  });
 
   replaceFindInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -303,32 +645,51 @@ export function initFindReplaceUi(api) {
     }
   });
 
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (isFindOpen()) closeFindBar();
+    else if (isReplaceOpen()) closeReplaceBar();
+  });
+
   return {
     openFind,
     openReplace,
     findNext() {
-      const ta = api.getTextarea();
-      if (!ta) return;
-      const { query, matchCase } = getLastFindState();
+      const { query, matchCase, scope } = getLastFindState();
       const q = query || findInput?.value || replaceFindInput?.value || '';
       if (!q) {
         openFind();
         return;
       }
-      const ok = findInEditor(ta, q, { matchCase, reverse: false });
-      if (!ok && findDlg.open) setStatus(findStatus, `Cannot find "${q}"`, true);
+      const s = scope || resolveScope();
+      if (s === 'preview') previewMatchIndex += 1;
+      else if (s === 'both') bothFlatIndex = bothFlatIndex < 0 ? 0 : bothFlatIndex + 1;
+      const ok = runFindOnScope(q, matchCase, false, s);
+      if (!ok) {
+        previewMatchIndex = -1;
+        bothFlatIndex = -1;
+      }
+      if (!ok && isFindOpen()) setStatus(findStatus, `Cannot find "${q}"`, true);
     },
     findPrevious() {
-      const ta = api.getTextarea();
-      if (!ta) return;
-      const { query, matchCase } = getLastFindState();
+      const { query, matchCase, scope } = getLastFindState();
       const q = query || findInput?.value || replaceFindInput?.value || '';
       if (!q) {
         openFind();
         return;
       }
-      const ok = findInEditor(ta, q, { matchCase, reverse: true });
-      if (!ok && findDlg.open) setStatus(findStatus, `Cannot find "${q}"`, true);
+      const s = scope || resolveScope();
+      if (s === 'preview') previewMatchIndex -= 1;
+      else if (s === 'both') bothFlatIndex = bothFlatIndex < 0 ? 0 : bothFlatIndex - 1;
+      const ok = runFindOnScope(q, matchCase, true, s);
+      if (!ok) {
+        previewMatchIndex = -1;
+        bothFlatIndex = -1;
+      }
+      if (!ok && isFindOpen()) setStatus(findStatus, `Cannot find "${q}"`, true);
     },
+    clearPreviewHighlights: clearPreviewFindHighlights,
+    clearEditorHighlights: () => clearEditorFindHighlights(api.getTextarea()),
+    refreshOpenFind: () => refreshFindHighlightsFromDialog(),
   };
 }

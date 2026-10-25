@@ -2,6 +2,8 @@ const KEY_DISCLAIMER = 'm2pdf_disclaimer_v1';
 
 /** @typedef {'last' | 'every'} FooterRepeatMode */
 const KEY_FOOTER_REPEAT = 'm2pdf_footer_repeat_v1';
+const KEY_FOOTER_PAGENUM = 'm2pdf_footer_pagenum_v1';
+const KEY_FOOTER_TEXT_ALIGN = 'm2pdf_footer_text_align_v1';
 
 const KEY_SIDEBAR_WIDTH_PX = 'm2pdf_sidebar_width_px_v1';
 
@@ -224,7 +226,56 @@ export function saveFooterRepeat(mode) {
   }
 }
 
+/** @typedef {'off' | 'left' | 'center' | 'right'} FooterPageNumAlign */
 
+/**
+ * Web default is `center` (historical always-on @page page numbers).
+ * Desktop may default to `off` when Prefer B owns page # in the strip.
+ * @returns {FooterPageNumAlign}
+ */
+export function loadFooterPageNum() {
+  try {
+    const v = localStorage.getItem(KEY_FOOTER_PAGENUM);
+    if (v === 'left' || v === 'center' || v === 'right' || v === 'off') return v;
+    return 'center';
+  } catch {
+    return 'center';
+  }
+}
+
+/** @param {FooterPageNumAlign} align */
+export function saveFooterPageNum(align) {
+  try {
+    const v =
+      align === 'left' || align === 'center' || align === 'right' || align === 'off' ? align : 'center';
+    localStorage.setItem(KEY_FOOTER_PAGENUM, v);
+  } catch {
+    /* ignore quota */
+  }
+}
+
+/** @typedef {'left' | 'center' | 'right'} FooterTextAlign */
+
+/** @returns {FooterTextAlign} */
+export function loadFooterTextAlign() {
+  try {
+    const v = localStorage.getItem(KEY_FOOTER_TEXT_ALIGN);
+    if (v === 'center' || v === 'right') return v;
+    return 'left';
+  } catch {
+    return 'left';
+  }
+}
+
+/** @param {FooterTextAlign} align */
+export function saveFooterTextAlign(align) {
+  try {
+    const v = align === 'center' || align === 'right' ? align : 'left';
+    localStorage.setItem(KEY_FOOTER_TEXT_ALIGN, v);
+  } catch {
+    /* ignore quota */
+  }
+}
 
 /** @returns {number | null} */
 

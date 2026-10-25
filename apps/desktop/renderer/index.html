@@ -16,7 +16,7 @@
       href="#main-preview"
       class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded focus:bg-white focus:px-4 focus:py-2 focus:shadow focus:outline focus:outline-2 focus:outline-pd-primary"
     >
-      Skip to preview
+      Skip to print preview
     </a>
 
     <!-- Viewport-height shell: only the preview pane / sidebar list scroll. -->
@@ -231,13 +231,26 @@
             </div>
 
             <label class="block text-xs text-slate-600" for="textarea-md">Markdown (edit or paste)</label>
-            <textarea
-              id="textarea-md"
-              class="h-40 w-full resize-y rounded border border-slate-300 p-2 font-mono text-xs leading-relaxed"
-              placeholder="# Title&#10;&#10;Paste PragmaticSpeak output or open a .md file."
-              aria-describedby="md-input-warning"
-              spellcheck="false"
-            ></textarea>
+            <div
+              id="md-editor-stack"
+              class="relative grid w-full [&>*]:col-start-1 [&>*]:row-start-1"
+            >
+              <div
+                id="textarea-md-backdrop"
+                class="pointer-events-none z-0 min-h-40 w-full overflow-hidden rounded border border-transparent p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words text-slate-900 opacity-0"
+                aria-hidden="true"
+              >
+                <div id="textarea-md-backdrop-inner"></div>
+              </div>
+              <textarea
+                id="textarea-md"
+                class="z-[1] h-40 min-h-40 w-full resize-y rounded border border-slate-300 bg-white p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words"
+                placeholder="# Title&#10;&#10;Paste PragmaticSpeak output or open a .md file."
+                aria-describedby="md-input-warning"
+                spellcheck="false"
+                wrap="soft"
+              ></textarea>
+            </div>
             <p id="md-input-warning" class="hidden text-xs text-amber-700"></p>
           </section>
 
@@ -246,7 +259,7 @@
               Page guides
             </h2>
             <p id="page-guide-hint" class="text-[11px] leading-snug text-slate-400">
-              Horizontal bands in the preview only — approximate page length. PDF breaks depend on your print dialog (paper, margins, scale).
+              Optional bands on the continuous preview (paper + margin pitch). Export PDF uses Chromium for final page breaks.
             </p>
             <div class="flex flex-wrap items-center gap-3">
               <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
@@ -394,14 +407,14 @@
                   </div>
                 </div>
                 <p id="logo-scale-hint" class="text-[11px] leading-snug text-slate-400">
-                  Scale is the max width of the logo column (% of the header/footer), not full-page stretch. Placement moves that column left/center/right. Footer + disclaimer side‑by‑side: logo column is at most ~52% so text keeps room.
+                  Same idea as header logo scale: max width of the logo column as % of the page. Height follows the image. Placement moves that column left/center/right.
                 </p>
               </div>
             </div>
           </section>
 
           <section class="space-y-2">
-            <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Print title</h2>
+            <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">PDF title</h2>
             <p class="text-[11px] leading-snug text-slate-400">
               Optional title in the header area with the logo (not added to the Markdown source).
             </p>
@@ -410,7 +423,7 @@
               id="input-print-title"
               type="text"
               class="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder="Document title for the printed header"
+              placeholder="Document title in the PDF header"
               autocomplete="off"
             />
             <label class="block text-xs text-slate-600" for="select-print-title-level">Title level</label>
@@ -435,15 +448,38 @@
           </section>
 
           <section class="space-y-2">
-            <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Print footer</h2>
+            <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">PDF footer</h2>
             <label class="block text-xs text-slate-600" for="textarea-disclaimer"
               >Disclaimer / legal text (optional)</label
             >
             <textarea
               id="textarea-disclaimer"
               class="h-24 w-full resize-y rounded border border-slate-300 p-2 text-sm"
-              placeholder="Shown in the page footer. Pairs with the footer logo: side‑by‑side for left/right placement; below the logo when footer logo is centered."
+              placeholder="Shown in the page footer (placement below)."
             ></textarea>
+            <label class="block text-xs font-medium text-slate-600" for="select-footer-text-align"
+              >Footer text placement</label
+            >
+            <select
+              id="select-footer-text-align"
+              class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800"
+            >
+              <option value="left">Footer text — Left</option>
+              <option value="center">Footer text — Center</option>
+              <option value="right">Footer text — Right</option>
+            </select>
+            <label class="block text-xs font-medium text-slate-600" for="select-footer-pagenum"
+              >Page numbers in footer</label
+            >
+            <select
+              id="select-footer-pagenum"
+              class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            >
+              <option value="off">Off</option>
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
             <label class="block text-xs font-medium text-slate-600" for="select-footer-repeat"
               >Footer on pages</label
             >
@@ -452,11 +488,11 @@
               class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
             >
               <option value="last">Last page only</option>
-              <option value="every">Every printed page</option>
+              <option value="every">Every PDF page</option>
             </select>
             <p class="text-xs leading-snug text-slate-500">
-              Every page repeats the footer when you print or export. Keep the disclaimer short — tall
-              footers may clip or overlap. Page numbers stay in the bottom print margin.
+              Every PDF page: footer text placement, logo placement, and page-number side apply to Export and live Preview.
+              Last page only uses the in-flow footer. Scroll the left panel if you don’t see all PDF options.
             </p>
           </section>
         </div>
@@ -478,18 +514,23 @@
         ></span>
       </div>
 
-      <!-- Preview + print root -->
-      <main id="main-preview" class="min-h-0 flex-1 overflow-y-auto bg-slate-200/80 p-4 lg:p-6" tabindex="-1">
+      <!-- Live print preview (header, body, footer — updates as you edit) -->
+      <main
+        id="main-preview"
+        class="m2pdf-print-preview-pane min-h-0 flex-1 overflow-y-auto p-4 lg:p-6"
+        tabindex="-1"
+        aria-label="Print preview"
+      >
         <div
           id="print-root"
-          class="relative mx-auto min-h-[calc(100vh-6rem)] min-w-0 max-w-3xl overflow-x-clip bg-white px-6 py-8 shadow-sm ring-1 ring-slate-200/80 print:shadow-none print:ring-0"
+          class="m2pdf-print-canvas relative mx-auto flex min-w-0 flex-col overflow-x-clip bg-transparent print:max-w-none print:shadow-none print:ring-0"
         >
           <div
             id="page-guide-overlay"
             class="pointer-events-none absolute inset-0 z-0 hidden print:hidden"
             aria-hidden="true"
           ></div>
-          <div class="relative z-[1] min-w-0">
+          <div id="print-flow" class="relative z-[1] min-w-0 flex-1">
           <header id="brand-header" class="mb-6 hidden border-b border-slate-200 pb-4 print:mb-4">
             <div id="brand-header-inner" class="flex w-full min-w-0 items-center gap-4">
               <div id="header-logo-column" class="hidden min-w-0 shrink">
@@ -513,141 +554,177 @@
           >
             <p class="text-slate-400">Open or paste Markdown to see the preview.</p>
           </article>
+          </div>
 
-          <!-- Unified print footer: disclaimer + footer logo layout controlled in main.js -->
-          <section
-            id="print-footer-block"
-            class="m2pdf-print-footer mt-8 hidden border-t border-slate-200 pt-4 print:mt-8"
-          >
-            <div id="print-footer-layout" class="flex w-full min-w-0 items-start gap-4">
-              <div id="footer-logo-column" class="hidden min-w-0">
-                <div id="brand-footer-logo-inner" class="flex w-full min-w-0">
-                  <img
-                    id="brand-logo-footer-img"
-                    src=""
-                    alt="Logo"
-                    class="block h-auto max-h-48 w-full max-w-full object-contain"
-                  />
+          <div id="footer-last-page-wrap" class="relative z-[1] shrink-0">
+            <div id="footer-last-page-spacer" class="hidden" aria-hidden="true"></div>
+            <!-- Unified print footer: disclaimer + footer logo layout controlled in main.js -->
+            <section
+              id="print-footer-block"
+              class="m2pdf-print-footer hidden pt-1"
+            >
+              <div id="print-footer-layout" class="flex w-full min-w-0 flex-col gap-1">
+                <div id="footer-logo-row" class="hidden min-w-0">
+                  <div id="footer-logo-column" class="min-w-0">
+                    <div id="brand-footer-logo-inner" class="flex w-full min-w-0">
+                      <img
+                        id="brand-logo-footer-img"
+                        src=""
+                        alt="Logo"
+                        class="block h-auto max-h-48 w-auto max-w-full object-contain"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div
+                  id="footer-text-row"
+                  class="flex w-full min-w-0 items-end justify-between gap-3"
+                >
+                  <div
+                    id="disclaimer-footer"
+                    class="min-w-0 flex-1 text-xs leading-snug text-slate-600"
+                  ></div>
+                  <div
+                    id="footer-page-number"
+                    class="m2pdf-footer-pagenum hidden shrink-0 text-xs leading-snug text-slate-500"
+                    aria-hidden="true"
+                  ></div>
                 </div>
               </div>
-              <div
-                id="disclaimer-footer"
-                class="min-w-0 flex-1 text-xs leading-relaxed text-slate-600"
-              ></div>
-            </div>
-          </section>
+            </section>
           </div>
         </div>
       </main>
     </div>
 
-    <!-- Notepad-style Find / Replace (Markdown editor only). -->
     <dialog
-      id="dlg-find"
-      class="m2pdf-dlg w-[min(100vw-2rem,22rem)] rounded-lg border border-slate-300 bg-white p-4 shadow-lg text-slate-900"
-      aria-labelledby="dlg-find-title"
+      id="dlg-about"
+      class="m2pdf-dlg w-[min(100vw-2rem,20rem)] rounded-lg border border-slate-300 bg-white p-5 shadow-lg text-slate-900"
+      aria-labelledby="dlg-about-title"
     >
-      <form method="dialog" class="space-y-3" onsubmit="return false">
-        <h2 id="dlg-find-title" class="text-sm font-semibold text-slate-800">Find</h2>
-        <label class="block text-xs text-slate-600" for="find-query">Find what:</label>
+      <div class="space-y-3 text-center">
+        <h2 id="dlg-about-title" class="text-base font-semibold text-slate-900">Markdown2PDF</h2>
+        <p class="text-sm text-slate-600">
+          Version <span id="about-version">—</span>
+        </p>
+        <p class="text-sm text-slate-600">Pragmatic Disruptor, LLC.</p>
+        <p class="text-xs leading-snug text-slate-500">
+          Documents are processed on this device. Drafts and logos may be stored in local app storage.
+          See Help → Privacy Notice.
+        </p>
+        <button
+          id="about-ok"
+          type="button"
+          class="mt-2 w-full rounded border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-200"
+        >
+          OK
+        </button>
+      </div>
+    </dialog>
+
+    <!-- Modeless Find / Replace (Notepad-style — no dimmed backdrop). -->
+    <div
+      id="find-bar"
+      class="m2pdf-find-bar no-print hidden"
+      role="search"
+      aria-label="Find"
+    >
+      <div class="m2pdf-find-bar-inner">
+        <span class="m2pdf-find-bar-label">Find</span>
         <input
           id="find-query"
           type="text"
-          class="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+          class="m2pdf-find-bar-input"
+          placeholder="Find"
           autocomplete="off"
           spellcheck="false"
+          aria-label="Find text"
         />
-        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-          <input id="find-match-case" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+        <button id="find-prev" type="button" class="m2pdf-find-bar-btn" title="Find previous">
+          ▲
+        </button>
+        <button id="find-next" type="button" class="m2pdf-find-bar-btn" title="Find next">
+          ▼
+        </button>
+        <span class="m2pdf-find-bar-sep" aria-hidden="true"></span>
+        <select id="find-scope" class="m2pdf-find-bar-select" title="Search in">
+          <option value="editor">Source (left)</option>
+          <option value="preview">Print preview (right)</option>
+          <option value="both">Both panes</option>
+        </select>
+        <label class="m2pdf-find-bar-check">
+          <input id="find-match-case" type="checkbox" />
           Match case
         </label>
-        <p id="find-status" class="min-h-[1rem] text-xs text-slate-500" role="status"></p>
-        <div class="flex flex-wrap justify-end gap-2 pt-1">
-          <button
-            id="find-prev"
-            type="button"
-            class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-          >
-            Find Previous
-          </button>
-          <button
-            id="find-next"
-            type="button"
-            class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
-          >
-            Find Next
-          </button>
-          <button
-            id="find-close"
-            type="button"
-            class="rounded border border-slate-300 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </dialog>
+        <button
+          id="find-close"
+          type="button"
+          class="m2pdf-find-bar-btn m2pdf-find-bar-close"
+          title="Close (Esc)"
+        >
+          ×
+        </button>
+        <span id="find-status" class="m2pdf-find-bar-status" role="status"></span>
+      </div>
+    </div>
 
-    <dialog
-      id="dlg-replace"
-      class="m2pdf-dlg w-[min(100vw-2rem,24rem)] rounded-lg border border-slate-300 bg-white p-4 shadow-lg text-slate-900"
-      aria-labelledby="dlg-replace-title"
+    <div
+      id="replace-bar"
+      class="m2pdf-find-bar no-print hidden"
+      role="search"
+      aria-label="Replace"
     >
-      <form method="dialog" class="space-y-3" onsubmit="return false">
-        <h2 id="dlg-replace-title" class="text-sm font-semibold text-slate-800">Replace</h2>
-        <label class="block text-xs text-slate-600" for="replace-query">Find what:</label>
+      <div class="m2pdf-find-bar-inner m2pdf-find-bar-inner-wrap">
+        <span class="m2pdf-find-bar-label">Replace</span>
         <input
           id="replace-query"
           type="text"
-          class="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+          class="m2pdf-find-bar-input"
+          placeholder="Find"
           autocomplete="off"
           spellcheck="false"
+          aria-label="Find text"
         />
-        <label class="block text-xs text-slate-600" for="replace-with">Replace with:</label>
         <input
           id="replace-with"
           type="text"
-          class="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+          class="m2pdf-find-bar-input"
+          placeholder="Replace with"
           autocomplete="off"
           spellcheck="false"
+          aria-label="Replace with"
         />
-        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-          <input id="replace-match-case" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+        <button id="replace-find-next" type="button" class="m2pdf-find-bar-btn" title="Find next">
+          ▼
+        </button>
+        <button id="replace-one" type="button" class="m2pdf-find-bar-btn" title="Replace">
+          Replace
+        </button>
+        <button id="replace-all" type="button" class="m2pdf-find-bar-btn" title="Replace all">
+          All
+        </button>
+        <span class="m2pdf-find-bar-sep" aria-hidden="true"></span>
+        <select id="replace-scope" class="m2pdf-find-bar-select" title="Search in">
+          <option value="editor">Source (left)</option>
+          <option value="preview">Print preview (right)</option>
+          <option value="both">Both panes</option>
+        </select>
+        <label class="m2pdf-find-bar-check">
+          <input id="replace-match-case" type="checkbox" />
           Match case
         </label>
-        <p id="replace-status" class="min-h-[1rem] text-xs text-slate-500" role="status"></p>
-        <div class="flex flex-wrap justify-end gap-2 pt-1">
-          <button
-            id="replace-find-next"
-            type="button"
-            class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-          >
-            Find Next
-          </button>
-          <button
-            id="replace-one"
-            type="button"
-            class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-          >
-            Replace
-          </button>
-          <button
-            id="replace-all"
-            type="button"
-            class="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-          >
-            Replace All
-          </button>
-          <button
-            id="replace-close"
-            type="button"
-            class="rounded border border-slate-300 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </dialog>
+        <button
+          id="replace-close"
+          type="button"
+          class="m2pdf-find-bar-btn m2pdf-find-bar-close"
+          title="Close (Esc)"
+        >
+          ×
+        </button>
+        <span class="m2pdf-find-bar-hint">Replace edits source only</span>
+        <span id="replace-status" class="m2pdf-find-bar-status" role="status"></span>
+      </div>
+    </div>
 
     <script type="module" src="/src/main.js"></script>
   </body>

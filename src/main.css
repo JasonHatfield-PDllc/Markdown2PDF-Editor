@@ -8,9 +8,20 @@
   page-break-inside: avoid;
 }
 
+#disclaimer-footer {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
 /* Screen-only: repeating horizontal bands ≈ printable body height (see pageGuide.js + @page margins). */
 #print-root {
   --m2pdf-guide-step: 900px;
+  --m2pdf-print-paper-width: 215.9mm;
+  width: min(100%, var(--m2pdf-print-paper-width));
+  max-width: var(--m2pdf-print-paper-width);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 #page-guide-overlay:not(.hidden) {
@@ -65,16 +76,9 @@ body.m2pdf-resizing * {
  * “Headers and footers” toggle required. Firefox/Safari may omit until supported.
  * @see https://developer.chrome.com/blog/print-margins
  */
+/* Fallback @page; runtime injects margin + page-# placement via #m2pdf-print-page. */
 @page {
   margin: 16mm 14mm 22mm 14mm;
-  @bottom-center {
-    content: 'Page ' counter(page) ' of ' counter(pages);
-    font-size: 9pt;
-    line-height: 1.2;
-    color: #64748b;
-    font-family: ui-sans-serif, system-ui, sans-serif, 'Segoe UI', Roboto, Helvetica, Arial;
-    vertical-align: top;
-  }
 }
 
 @media print {
@@ -101,21 +105,38 @@ body.m2pdf-resizing * {
 
   #print-root {
     min-height: auto !important;
-    max-width: none !important;
-    margin: 0 !important;
+    width: var(--m2pdf-print-paper-width, 215.9mm) !important;
+    max-width: var(--m2pdf-print-paper-width, 215.9mm) !important;
+    margin: 0 auto !important;
     padding: 0 !important;
     box-shadow: none !important;
   }
 
-  /* Every-page mode: repeat branding footer on each printed page (screen preview stays in-flow). */
-  body.m2pdf-footer-every-page #print-footer-block:not(.hidden) {
+  /*
+   * Every-page + text/page# only: @page margin boxes own the footer band (same line).
+   * Hide the in-flow DOM footer so it does not stack above the margin and create a huge gap.
+   */
+  body.m2pdf-footer-every-page.m2pdf-footer-margin-band #print-footer-block {
+    display: none !important;
+  }
+
+  /*
+   * Every-page + footer logo: best-effort fixed strip (no Prefer B footerTemplate on web).
+   * Keep it compact; page # still uses @page margin boxes on the line below when needed.
+   */
+  body.m2pdf-footer-every-page:not(.m2pdf-footer-margin-band) #print-footer-block:not(.hidden) {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     width: 100%;
     margin-top: 0 !important;
+    padding-top: 2mm !important;
     background: white;
     z-index: 1;
+  }
+
+  body.m2pdf-footer-every-page:not(.m2pdf-footer-margin-band) #brand-logo-footer-img {
+    max-height: 12mm !important;
   }
 }

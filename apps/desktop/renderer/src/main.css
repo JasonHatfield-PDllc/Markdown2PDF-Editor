@@ -65,13 +65,449 @@ body.m2pdf-resizing * {
   user-select: none !important;
 }
 
-/* Centred modal dialogs (Find / Replace). */
+/* About dialog only (Find/Replace are modeless bars). */
 dialog.m2pdf-dlg::backdrop {
   background: rgba(15, 23, 42, 0.35);
 }
 
 dialog.m2pdf-dlg:focus {
   outline: none;
+}
+
+/* Notepad-style modeless Find / Replace — document stays editable. */
+.m2pdf-find-bar {
+  position: fixed;
+  top: 0.5rem;
+  left: 50%;
+  z-index: 300;
+  max-width: min(96vw, 52rem);
+  transform: translateX(-50%);
+}
+
+.m2pdf-find-bar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.375rem;
+  background: #fff;
+  padding: 0.35rem 0.5rem;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.08),
+    0 2px 4px -2px rgb(0 0 0 / 0.06);
+}
+
+.m2pdf-find-bar-inner-wrap {
+  max-width: min(96vw, 56rem);
+}
+
+.m2pdf-find-bar-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
+  padding-right: 0.15rem;
+}
+
+.m2pdf-find-bar-input {
+  min-width: 8rem;
+  flex: 1 1 8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.m2pdf-find-bar-btn {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.25rem;
+  background: #f8fafc;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: #334155;
+}
+
+.m2pdf-find-bar-btn:hover {
+  background: #f1f5f9;
+}
+
+.m2pdf-find-bar-sep {
+  width: 1px;
+  height: 1.25rem;
+  background: #e2e8f0;
+  margin: 0 0.15rem;
+}
+
+.m2pdf-find-bar-select {
+  max-width: 9rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.25rem;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.75rem;
+  color: #334155;
+}
+
+.m2pdf-find-bar-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.m2pdf-find-bar-close {
+  margin-left: auto;
+  min-width: 1.75rem;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.15rem 0.4rem;
+}
+
+.m2pdf-find-bar-hint {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.m2pdf-find-bar-status {
+  flex: 1 1 100%;
+  min-height: 0.85rem;
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+#textarea-md.m2pdf-find-overlay-active {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: #0f172a;
+  background-color: transparent;
+}
+
+#textarea-md-backdrop {
+  color: #0f172a;
+}
+
+#textarea-md-backdrop mark.m2pdf-find-mark {
+  background: #ffff00;
+  color: #0f172a;
+  padding: 0;
+  border-radius: 0;
+}
+
+#textarea-md-backdrop mark.m2pdf-find-mark-active {
+  background: #ff9632;
+  color: #0f172a;
+  padding: 0;
+  border-radius: 0;
+  outline: 1px solid #e17100;
+}
+
+::highlight(m2pdf-find) {
+  background: #fef9c3;
+  color: #0f172a;
+}
+
+::highlight(m2pdf-find-active) {
+  background: #fde047;
+  color: #0f172a;
+}
+
+#md-preview mark.m2pdf-find-mark {
+  background: #fde047;
+  color: inherit;
+  padding: 0;
+}
+
+.m2pdf-print-preview-pane {
+  background: #525659;
+  position: relative;
+}
+
+/* Continuous document View (default stability mode). */
+body.m2pdf-document-preview #print-pages-stack {
+  display: none !important;
+}
+
+body.m2pdf-document-preview #chromium-pdf-host {
+  display: none !important;
+}
+
+body.m2pdf-document-preview #print-root {
+  position: relative !important;
+  left: auto !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+/* Option B: live View = Chromium PDF (printToPDF). Print DOM stays off-screen. */
+.m2pdf-chromium-pdf-host {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: #525659;
+}
+
+.m2pdf-chromium-pdf-status {
+  flex: 0 0 auto;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  color: #e2e8f0;
+  background: rgb(15 23 42 / 0.55);
+}
+
+.m2pdf-chromium-pdf-status[data-kind='error'] {
+  color: #fecaca;
+}
+
+.m2pdf-chromium-pdf-status[data-kind='busy'] {
+  color: #fde68a;
+}
+
+.m2pdf-chromium-pdf-status[data-kind='find'] {
+  color: #bae6fd;
+}
+
+.m2pdf-chromium-pdf-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #525659;
+}
+
+.m2pdf-pdfjs-pages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 0 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  background: #525659;
+}
+
+.m2pdf-pdfjs-page {
+  position: relative;
+  background: white;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.35);
+}
+
+.m2pdf-pdfjs-canvas {
+  /* Keep intrinsic render size — width:100% was shrinking pages on first layout. */
+  display: block;
+  width: auto;
+  max-width: none;
+  height: auto;
+}
+
+/*
+ * pdf.js TextLayer — must match pdf_viewer.css metrics (--font-height, --scale-x,
+ * --total-scale-factor). Incomplete span rules caused wonky selection + odd chrome boxes.
+ */
+.m2pdf-pdfjs-page .textLayer {
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: transparent;
+  z-index: 2;
+  outline: none;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.m2pdf-pdfjs-page .textLayer:focus,
+.m2pdf-pdfjs-page .textLayer:focus-visible,
+.m2pdf-pdfjs-page:focus,
+.m2pdf-pdfjs-page:focus-visible {
+  outline: none;
+}
+
+.m2pdf-pdfjs-page .textLayer span,
+.m2pdf-pdfjs-page .textLayer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.m2pdf-pdfjs-page .textLayer > :not(.markedContent),
+.m2pdf-pdfjs-page .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.m2pdf-pdfjs-page .textLayer .markedContent {
+  display: contents;
+}
+
+.m2pdf-pdfjs-page .textLayer ::selection {
+  background: rgb(0 100 255 / 0.28);
+  color: transparent;
+}
+
+.m2pdf-pdfjs-page .textLayer ::-moz-selection {
+  background: rgb(0 100 255 / 0.28);
+  color: transparent;
+}
+
+.m2pdf-pdfjs-page .textLayer br::selection,
+.m2pdf-pdfjs-page .textLayer br::-moz-selection {
+  background: transparent;
+}
+
+.m2pdf-pdfjs-page .textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+.m2pdf-pdfjs-page .textLayer.selecting .endOfContent {
+  top: 0;
+}
+
+.m2pdf-pdfjs-page .textLayer span.m2pdf-pdfjs-find-hit {
+  background: rgb(250 204 21 / 0.45) !important;
+}
+
+.m2pdf-pdfjs-page .textLayer span.m2pdf-pdfjs-find-active {
+  background: rgb(251 146 60 / 0.65) !important;
+}
+
+/* Off-screen print DOM for Prefer B — width must match selected paper (not locked Letter). */
+body.m2pdf-chromium-preview #print-root {
+  position: absolute !important;
+  left: -12000px !important;
+  top: 0 !important;
+  width: var(--m2pdf-print-paper-width, 8.5in) !important;
+  max-width: var(--m2pdf-print-paper-width, 8.5in) !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+  z-index: 0;
+}
+
+body.m2pdf-chromium-preview #print-pages-stack {
+  display: none !important;
+}
+
+body.m2pdf-chromium-preview #page-guide-overlay {
+  display: none !important;
+}
+
+/* Preview pane is focusable for Find; never show a focus ring over the PDF pages. */
+body.m2pdf-chromium-preview #main-preview:focus,
+body.m2pdf-chromium-preview #main-preview:focus-visible,
+body.m2pdf-chromium-preview #chromium-pdf-host:focus,
+body.m2pdf-chromium-preview #chromium-pdf-host:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+@media print {
+  body.m2pdf-chromium-preview #chromium-pdf-host {
+    display: none !important;
+  }
+
+  body.m2pdf-chromium-preview #print-root {
+    position: static !important;
+    left: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    pointer-events: auto !important;
+  }
+}
+
+.m2pdf-preview-page-frame {
+  display: block;
+  background: white;
+  box-shadow:
+    0 2px 10px rgb(0 0 0 / 0.35),
+    0 0 0 1px rgb(0 0 0 / 0.06);
+  margin-bottom: 20px;
+  box-sizing: border-box;
+}
+
+/* Screen preview footers: no rule above footer (saves vertical space; PDF print keeps @page/footer styling). */
+.m2pdf-screen-footer .m2pdf-print-footer,
+.m2pdf-screen-footer section {
+  border-top: none !important;
+  padding-top: 0 !important;
+}
+
+.m2pdf-screen-footer .m2pdf-footer-pagenum {
+  font-size: 0.75rem;
+  line-height: 1.25;
+  color: #64748b;
+}
+
+/* Screen preview uses #print-pages-stack; PDF export uses in-flow document. */
+#main-preview #print-pages-stack {
+  position: relative;
+  z-index: 1;
+}
+
+/* #print-flow visibility toggled in JS after paginated stack is built. */
+
+.m2pdf-print-canvas {
+  font-size: 11pt;
+  line-height: 1.35;
+  color: #0f172a;
+}
+
+.m2pdf-print-canvas #md-preview {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.m2pdf-print-canvas #md-preview.prose :where(p, li, td, th),
+.m2pdf-print-canvas .m2pdf-page-prose.prose :where(p, li, td, th) {
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
+}
+
+@media print {
+  /*
+   * Page numbers come only from @page margin boxes (Chromium printToPDF).
+   * Do not use ::before counters here — they print as "0 of 0" and stack with
+   * leftover textContent ("Page 1 of 1") → "page 0 of 0Page 1 of 1".
+   */
+  .m2pdf-footer-pagenum {
+    display: none !important;
+  }
+
+  .m2pdf-print-footer {
+    border-top: none !important;
+    padding-top: 0.15rem !important;
+  }
 }
 
 /*
@@ -82,6 +518,7 @@ dialog.m2pdf-dlg:focus {
  * “Headers and footers” toggle required. Firefox/Safari may omit until supported.
  * @see https://developer.chrome.com/blog/print-margins
  */
+/* Default @page; runtime `syncPrintPageMargins()` overrides for footer mode / page-num align. */
 @page {
   margin: 16mm 14mm 22mm 14mm;
   @bottom-center {
@@ -128,15 +565,39 @@ dialog.m2pdf-dlg:focus {
     box-shadow: none !important;
   }
 
-  /* Every-page mode: repeat branding footer on each printed page (screen preview stays in-flow). */
-  body.m2pdf-footer-every-page #print-footer-block:not(.hidden) {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    margin-top: 0 !important;
-    background: white;
-    z-index: 1;
+  #print-pages-stack {
+    display: none !important;
+  }
+
+  #main-preview #print-flow,
+  #main-preview #footer-last-page-wrap {
+    position: static !important;
+    left: auto !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    display: block !important;
+  }
+
+  /*
+   * Every-page branding lives in the @page bottom margin (set dynamically from
+   * measured footer height + clearance pad). Body text cannot enter that margin,
+   * so lines break fully above the footer — never half-under it.
+   * Footer is pinned to the physical page bottom inside that reserved band.
+   */
+  /*
+   * Every-page branding is Chromium footerTemplate (Export / Prefer B), not
+   * position:fixed — fixed footers paint into the content box and hide body text.
+   * Hide the DOM footer in print when template mode is active.
+   */
+  body.m2pdf-footer-every-page #print-footer-block {
+    display: none !important;
+  }
+
+  body.m2pdf-footer-every-page #footer-last-page-wrap {
+    min-height: 0 !important;
+  }
+
+  body.m2pdf-footer-every-page #print-flow {
+    padding-bottom: 0;
   }
 }

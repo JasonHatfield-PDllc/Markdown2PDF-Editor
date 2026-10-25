@@ -432,6 +432,29 @@
               class="h-24 w-full resize-y rounded border border-slate-300 p-2 text-sm"
               placeholder="Shown in the page footer. Pairs with the footer logo: side‑by‑side for left/right placement; below the logo when footer logo is centered."
             ></textarea>
+            <label class="block text-xs font-medium text-slate-600" for="select-footer-text-align"
+              >Footer text placement</label
+            >
+            <select
+              id="select-footer-text-align"
+              class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800"
+            >
+              <option value="left">Footer text — Left</option>
+              <option value="center">Footer text — Center</option>
+              <option value="right">Footer text — Right</option>
+            </select>
+            <label class="block text-xs font-medium text-slate-600" for="select-footer-pagenum"
+              >Page numbers in footer</label
+            >
+            <select
+              id="select-footer-pagenum"
+              class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            >
+              <option value="off">Off</option>
+              <option value="left">Left</option>
+              <option value="center" selected>Center</option>
+              <option value="right">Right</option>
+            </select>
             <label class="block text-xs font-medium text-slate-600" for="select-footer-repeat"
               >Footer on pages</label
             >
@@ -443,8 +466,9 @@
               <option value="every">Every printed page</option>
             </select>
             <p class="text-xs leading-snug text-slate-500">
-              Every page repeats the footer when you print or export. Keep the disclaimer short — tall
-              footers may clip or overlap. Page numbers stay in the bottom print margin.
+              Every page: disclaimer + page # share the print margin band (Chrome/Edge). Keep text
+              short. In the print dialog, turn off browser “Headers and footers” (date/title). Logos
+              on every page still use a best-effort strip. True WYSIWYG page preview is desktop Prefer B.
             </p>
           </section>
         </div>
@@ -505,7 +529,7 @@
           <!-- Unified print footer: disclaimer + footer logo layout controlled in main.js -->
           <section
             id="print-footer-block"
-            class="m2pdf-print-footer mt-8 hidden border-t border-slate-200 pt-4 print:mt-8"
+            class="m2pdf-print-footer mt-6 hidden pt-2 print:mt-4 print:pt-1"
           >
             <div id="print-footer-layout" class="flex w-full min-w-0 items-start gap-4">
               <div id="footer-logo-column" class="hidden min-w-0">
@@ -514,7 +538,7 @@
                     id="brand-logo-footer-img"
                     src=""
                     alt="Logo"
-                    class="block h-auto max-h-48 w-full max-w-full object-contain"
+                    class="block h-auto max-h-48 max-w-full object-contain"
                   />
                 </div>
               </div>

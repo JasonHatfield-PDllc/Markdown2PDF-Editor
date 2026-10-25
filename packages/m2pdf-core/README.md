@@ -2,7 +2,7 @@
 
 Shared modules extracted from the web MVP (`src/`) for the future desktop app.
 
-**Phase 0 status:** Copied, not yet wired. The web app still imports from `src/` at the repo root. Desktop (Phase 1) will consume this package first.
+**Status:** Desktop imports `@m2pdf/core`. Web still dual-updates `src/` for markdown/toolbar; branding keys and page math stay synced with this package. Prefer B PDF export is desktop-only — see `docs/WEB-vs-DESKTOP-PRINT.md`.
 
 ## Exports
 

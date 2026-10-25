@@ -11,6 +11,8 @@ export class AppPage {
 
   readonly markdownTextarea: Locator;
   readonly disclaimerTextarea: Locator;
+  readonly footerTextAlignSelect: Locator;
+  readonly footerPageNumSelect: Locator;
   readonly footerRepeatSelect: Locator;
   readonly printTitleInput: Locator;
   readonly printTitleLevel: Locator;
@@ -30,6 +32,8 @@ export class AppPage {
     this.page = page;
     this.markdownTextarea = page.getByLabel('Markdown (edit or paste)');
     this.disclaimerTextarea = page.getByLabel('Disclaimer / legal text (optional)');
+    this.footerTextAlignSelect = page.getByLabel('Footer text placement');
+    this.footerPageNumSelect = page.getByLabel('Page numbers in footer');
     this.footerRepeatSelect = page.getByLabel('Footer on pages');
     this.printTitleInput = page.getByLabel('Title text');
     this.printTitleLevel = page.getByLabel('Title level');

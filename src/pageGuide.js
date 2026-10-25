@@ -14,20 +14,33 @@ export const PAGE_MARGIN_MM = {
   left: 14,
 };
 
-/** Every-page footer mode: larger bottom margin reserves the repeating brand strip. */
+/**
+ * Every-page footer: bottom reserves one margin-band line (disclaimer + page #).
+ * Logo every-page adds a bit more via syncPrintPageMargins — avoid the old 40mm “huge footer”.
+ */
 export const PAGE_MARGIN_MM_EVERY_PAGE = {
   top: 16,
   right: 14,
-  bottom: 40,
+  bottom: 18,
   left: 14,
 };
 
-/** Usable body height (mm) = sheet height − top/bottom print margins. */
+/** Sheet size (mm). Width drives screen/print `#print-root` paper lock. */
 export const PAPERS = {
-  letter: { label: 'US Letter', heightMm: 279.4 },
-  a4: { label: 'A4', heightMm: 297 },
-  legal: { label: 'US Legal', heightMm: 355.6 },
+  letter: { label: 'US Letter', widthMm: 215.9, heightMm: 279.4 },
+  a4: { label: 'A4', widthMm: 210, heightMm: 297 },
+  legal: { label: 'US Legal', widthMm: 215.9, heightMm: 355.6 },
 };
+
+/**
+ * Printable content width (px) for screen preview — sheet width minus left/right @page margins.
+ * @param {'letter' | 'a4' | 'legal'} paperId
+ */
+export function getContentWidthPx(paperId) {
+  const p = PAPERS[paperId] ?? PAPERS.letter;
+  const usableMm = p.widthMm - PAGE_MARGIN_MM.left - PAGE_MARGIN_MM.right;
+  return Math.max(200, usableMm * MM_TO_PX);
+}
 
 /**
  * Vertical pitch for repeating guide lines (CSS px).

@@ -15,13 +15,15 @@ import {
   insertTable,
   outdentLines,
 } from './mdToolbar.js';
-import { getUsableHeightPx, PAGE_MARGIN_MM, PAGE_MARGIN_MM_EVERY_PAGE } from './pageGuide.js';
+import { getUsableHeightPx, PAGE_MARGIN_MM, PAGE_MARGIN_MM_EVERY_PAGE, PAPERS } from './pageGuide.js';
 import {
   MAX_LOGO_DATA_URL_CHARS,
   addRecentLogoUrl,
   clearLogoSlot,
   loadBranding,
+  loadFooterPageNum,
   loadFooterRepeat,
+  loadFooterTextAlign,
   loadLogoBundle,
   loadLogoLayout,
   loadMarkdownDraft,
@@ -31,7 +33,9 @@ import {
   loadSidebarWidthPx,
   clearMarkdownDraft,
   saveDisclaimer,
+  saveFooterPageNum,
   saveFooterRepeat,
+  saveFooterTextAlign,
   saveLogoLayout,
   saveLogoSlot,
   saveMarkdownDraft,
@@ -72,6 +76,8 @@ const el = {
   selectPrintTitleLevel: document.getElementById('select-print-title-level'),
   selectPrintTitleAlign: document.getElementById('select-print-title-align'),
   textareaDisclaimer: document.getElementById('textarea-disclaimer'),
+  selectFooterTextAlign: document.getElementById('select-footer-text-align'),
+  selectFooterPageNum: document.getElementById('select-footer-pagenum'),
   selectFooterRepeat: document.getElementById('select-footer-repeat'),
   btnPrint: document.getElementById('btn-print'),
   printRoot: document.getElementById('print-root'),
@@ -499,7 +505,8 @@ const TITLE_ALIGN_JUSTIFY = {
 };
 
 /** `whitespace-pre-line` keeps line breaks from the textarea; long lines still wrap. */
-const DISCLAIMER_BODY_CLASS = 'text-xs leading-relaxed text-slate-600 whitespace-pre-line';
+const DISCLAIMER_BODY_CLASS =
+  'text-xs leading-relaxed text-slate-600 whitespace-pre-wrap break-words [overflow-wrap:anywhere]';
 
 function readPrintTitleFromForm() {
   const levelRaw = el.selectPrintTitleLevel?.value ?? 'h1';
@@ -624,6 +631,32 @@ function applyLogoBranding() {
   applyPrintFooterBlock();
 }
 
+/** @returns {'left' | 'center' | 'right'} */
+function readFooterTextAlignFromForm() {
+  const v = el.selectFooterTextAlign?.value;
+  if (v === 'center' || v === 'right') return v;
+  return 'left';
+}
+
+/** @returns {'off' | 'left' | 'center' | 'right'} */
+function readFooterPageNumFromForm() {
+  const v = el.selectFooterPageNum?.value;
+  if (v === 'left' || v === 'center' || v === 'right' || v === 'off') return v;
+  return 'center';
+}
+
+/** Apply disclaimer left/center/right on the in-flow print footer. */
+function applyFooterTextAlign() {
+  const disc = el.disclaimerFooter;
+  if (!disc) return;
+  const align = readFooterTextAlignFromForm();
+  disc.classList.remove('text-left', 'text-center', 'text-right', 'ml-auto', 'mr-auto', 'mx-auto');
+  if (align === 'center') disc.classList.add('text-center', 'mx-auto');
+  else if (align === 'right') disc.classList.add('text-right', 'ml-auto');
+  else disc.classList.add('text-left');
+  disc.style.textAlign = align;
+}
+
 /**
  * One print-footer region: disclaimer text + optional footer logo, laid out by footer placement.
  */
@@ -633,6 +666,7 @@ function applyPrintFooterBlock() {
   const showFooterLogo = Boolean(srcF) && layout.footerPlacement !== 'none';
   const disclaimerText = el.textareaDisclaimer?.value.trim() ?? '';
   const hasDisclaimer = Boolean(disclaimerText);
+  const pageNumAlign = readFooterPageNumFromForm();
 
   const block = el.printFooterBlock;
   const layoutRoot = el.printFooterLayout;
@@ -647,6 +681,7 @@ function applyPrintFooterBlock() {
   block.classList.toggle('hidden', !showBlock);
   if (!showBlock) {
     if (!showFooterLogo) el.brandLogoFooterImg.removeAttribute('src');
+    syncPrintPageMargins(readFooterRepeatFromForm(), pageNumAlign);
     return;
   }
 
@@ -713,30 +748,33 @@ function applyPrintFooterBlock() {
     el.disclaimerFooter.className = `w-full min-w-0 ${DISCLAIMER_BODY_CLASS}`;
   }
 
-  if (!showFooterLogo) {
-    return;
+  if (showFooterLogo) {
+    // Header parity: scale % on the column; image contains inside it (not stretched to 100% width).
+    el.brandLogoFooterImg.style.width = 'auto';
+    el.brandLogoFooterImg.style.maxWidth = '100%';
+    el.brandLogoFooterImg.style.height = 'auto';
+
+    if (hasDisclaimer && (fp === 'left' || fp === 'right')) {
+      const cap = Math.min(fs, 52);
+      logoCol.style.flex = `0 1 ${cap}%`;
+      logoCol.style.maxWidth = `${cap}%`;
+      logoCol.style.minWidth = '0';
+      el.disclaimerFooter.style.flex = '1 1 0%';
+      el.disclaimerFooter.style.minWidth = '0';
+    } else if (hasDisclaimer && fp === 'center') {
+      logoCol.style.maxWidth = `${fs}%`;
+      logoCol.style.minWidth = '0';
+      logoCol.style.marginLeft = 'auto';
+      logoCol.style.marginRight = 'auto';
+    } else {
+      logoCol.style.maxWidth = `${fs}%`;
+      logoCol.style.minWidth = '0';
+    }
   }
 
-  /** Image fills the logo column; scale % applies to column width, not intrinsic bitmap width. */
-  el.brandLogoFooterImg.style.width = '100%';
-  el.brandLogoFooterImg.style.maxWidth = '100%';
-
-  if (showFooterLogo && hasDisclaimer && (fp === 'left' || fp === 'right')) {
-    const cap = Math.min(fs, 52);
-    logoCol.style.flex = `0 1 ${cap}%`;
-    logoCol.style.maxWidth = `${cap}%`;
-    logoCol.style.minWidth = '0';
-    el.disclaimerFooter.style.flex = '1 1 0%';
-    el.disclaimerFooter.style.minWidth = '0';
-  } else if (showFooterLogo && hasDisclaimer && fp === 'center') {
-    logoCol.style.maxWidth = `${fs}%`;
-    logoCol.style.minWidth = '0';
-    logoCol.style.marginLeft = 'auto';
-    logoCol.style.marginRight = 'auto';
-  } else {
-    logoCol.style.maxWidth = `${fs}%`;
-    logoCol.style.minWidth = '0';
-  }
+  applyFooterTextAlign();
+  syncFooterMarginBandClass();
+  syncPrintPageMargins(readFooterRepeatFromForm(), pageNumAlign);
 }
 
 /** @param {File} file */
@@ -773,6 +811,19 @@ function syncDisclaimerDisplay() {
   applyPrintFooterBlock();
 }
 
+/**
+ * Lock preview/print content width to the selected paper (was Letter-only feel on wide screens).
+ * @param {'letter' | 'a4' | 'legal'} paper
+ */
+function applyPrintPaperWidthCss(paper) {
+  const p = PAPERS[paper] ?? PAPERS.letter;
+  const width = `${p.widthMm}mm`;
+  document.documentElement.style.setProperty('--m2pdf-print-paper-width', width);
+  if (el.printRoot) {
+    el.printRoot.style.setProperty('--m2pdf-print-paper-width', width);
+  }
+}
+
 /** Screen-only page-length bands; uses margins aligned with `pageGuide.js` + `@page` in main.css. */
 function applyPageGuide() {
   const root = el.printRoot;
@@ -780,6 +831,7 @@ function applyPageGuide() {
   if (!root || !overlay) return;
   const v = el.pageGuidePaper?.value;
   const paper = v === 'a4' || v === 'legal' ? v : 'letter';
+  applyPrintPaperWidthCss(paper);
   const every = document.body.classList.contains('m2pdf-footer-every-page');
   const bottomMm = every ? PAGE_MARGIN_MM_EVERY_PAGE.bottom : PAGE_MARGIN_MM.bottom;
   const stepPx = getUsableHeightPx(paper, { bottomMm });
@@ -790,12 +842,93 @@ function applyPageGuide() {
 
 const PRINT_PAGE_STYLE_ID = 'm2pdf-print-page';
 
+const MARGIN_BOX_FONT = `
+  font-size: 9pt;
+  line-height: 1.2;
+  color: #64748b;
+  font-family: ui-sans-serif, system-ui, sans-serif, 'Segoe UI', Roboto, Helvetica, Arial;
+  vertical-align: top;
+`;
+
+/** @param {string} s */
+function cssContentString(s) {
+  return `'${String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r\n|\r|\n/g, '\\A ')}'`;
+}
+
+/**
+ * Whether every-page print can put disclaimer + page # in @page margin boxes (same band).
+ * Footer logos still need the DOM strip (no Prefer B footerTemplate on web).
+ */
+function canUseEveryPageMarginBand() {
+  if (readFooterRepeatFromForm() !== 'every') return false;
+  const layout = readLogoLayoutFromForm();
+  const srcF = getLogoSrcForSlot('footer');
+  const showFooterLogo = Boolean(srcF) && layout.footerPlacement !== 'none';
+  return !showFooterLogo;
+}
+
+function syncFooterMarginBandClass() {
+  document.body.classList.toggle('m2pdf-footer-margin-band', canUseEveryPageMarginBand());
+}
+
 /**
  * `@page` cannot be keyed off a body class — inject/update margins for last vs every-page footer.
+ * Page # placement uses CSS margin boxes (Chrome/Edge). Web has no Prefer B footerTemplate.
+ * Every-page + text-only: disclaimer and page # share the bottom margin band (same line).
  * @param {'last' | 'every'} mode
+ * @param {'off' | 'left' | 'center' | 'right'} [pageNumInFooter]
  */
-function syncPrintPageMargins(mode) {
-  const bottom = mode === 'every' ? PAGE_MARGIN_MM_EVERY_PAGE.bottom : PAGE_MARGIN_MM.bottom;
+function syncPrintPageMargins(mode, pageNumInFooter = readFooterPageNumFromForm()) {
+  syncFooterMarginBandClass();
+  const every = mode === 'every';
+  const marginBand = every && canUseEveryPageMarginBand();
+  const hasLogoEvery = every && !marginBand;
+  const bottom = hasLogoEvery
+    ? Math.max(PAGE_MARGIN_MM_EVERY_PAGE.bottom, 28)
+    : every
+      ? PAGE_MARGIN_MM_EVERY_PAGE.bottom
+      : PAGE_MARGIN_MM.bottom;
+
+  const pageNumCss = `
+    content: 'Page ' counter(page) ' of ' counter(pages);
+    ${MARGIN_BOX_FONT}
+  `;
+  const none = 'content: none;';
+  /** @type {Record<'left'|'center'|'right', string>} */
+  const boxes = { left: none, center: none, right: none };
+
+  const disc = (el.textareaDisclaimer?.value ?? '').trim();
+  const textAlign = readFooterTextAlignFromForm();
+
+  if (marginBand && disc) {
+    boxes[textAlign] =
+      `content: ${cssContentString(disc)}; white-space: pre-wrap; ${MARGIN_BOX_FONT}`;
+  }
+
+  if (pageNumInFooter === 'left' || pageNumInFooter === 'center' || pageNumInFooter === 'right') {
+    // Prefer page # when it collides with disclaimer in the same box (rare: both center).
+    if (boxes[pageNumInFooter] !== none && pageNumInFooter === textAlign && marginBand && disc) {
+      // Split: disclaimer stays center-ish; bump page # to right (or left if text is right).
+      const fallback = pageNumInFooter === 'right' ? 'left' : 'right';
+      if (pageNumInFooter === 'center') {
+        boxes.center =
+          `content: ${cssContentString(disc)}; white-space: pre-wrap; ${MARGIN_BOX_FONT}`;
+        boxes.right = pageNumCss;
+      } else {
+        boxes[pageNumInFooter] =
+          `content: ${cssContentString(disc)}; white-space: pre-wrap; ${MARGIN_BOX_FONT}`;
+        boxes[fallback] = pageNumCss;
+      }
+    } else {
+      boxes[pageNumInFooter] = pageNumCss;
+    }
+  }
+
+  const marginBox = `@bottom-left { ${boxes.left} } @bottom-center { ${boxes.center} } @bottom-right { ${boxes.right} }`;
+
   let styleEl = document.getElementById(PRINT_PAGE_STYLE_ID);
   if (!styleEl) {
     styleEl = document.createElement('style');
@@ -805,14 +938,7 @@ function syncPrintPageMargins(mode) {
   styleEl.textContent = `
 @page {
   margin: ${PAGE_MARGIN_MM.top}mm ${PAGE_MARGIN_MM.right}mm ${bottom}mm ${PAGE_MARGIN_MM.left}mm;
-  @bottom-center {
-    content: 'Page ' counter(page) ' of ' counter(pages);
-    font-size: 9pt;
-    line-height: 1.2;
-    color: #64748b;
-    font-family: ui-sans-serif, system-ui, sans-serif, 'Segoe UI', Roboto, Helvetica, Arial;
-    vertical-align: top;
-  }
+  ${marginBox}
 }
 `;
 }
@@ -838,6 +964,17 @@ function persistFooterRepeat() {
   const m = readFooterRepeatFromForm();
   saveFooterRepeat(m);
   applyFooterRepeatMode(m);
+}
+
+function persistFooterTextAlign() {
+  saveFooterTextAlign(readFooterTextAlignFromForm());
+  applyFooterTextAlign();
+}
+
+function persistFooterPageNum() {
+  const align = readFooterPageNumFromForm();
+  saveFooterPageNum(align);
+  syncPrintPageMargins(readFooterRepeatFromForm(), align);
 }
 
 function persistPageGuide() {
@@ -923,6 +1060,13 @@ function initFromStorage() {
   }
 
   applyFooterRepeatMode(loadFooterRepeat());
+
+  const textAlign = loadFooterTextAlign();
+  if (el.selectFooterTextAlign) el.selectFooterTextAlign.value = textAlign;
+
+  const pageNum = loadFooterPageNum();
+  if (el.selectFooterPageNum) el.selectFooterPageNum.value = pageNum;
+  syncPrintPageMargins(readFooterRepeatFromForm(), pageNum);
 
   applyPrintTitleToForm(loadPrintTitle());
 
@@ -1087,6 +1231,8 @@ el.textareaDisclaimer.addEventListener('input', () => {
   syncDisclaimerDisplay();
   persistDisclaimer();
 });
+el.selectFooterTextAlign?.addEventListener('change', persistFooterTextAlign);
+el.selectFooterPageNum?.addEventListener('change', persistFooterPageNum);
 el.selectFooterRepeat?.addEventListener('change', persistFooterRepeat);
 
 const persistPrintTitleDebounced = debounce(() => {

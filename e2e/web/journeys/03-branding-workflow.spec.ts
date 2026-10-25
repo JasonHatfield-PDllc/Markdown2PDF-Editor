@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AppPage } from '../../pages/app.page';
+import { BRANDING_SETTLE_MS } from '../../support/constants';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const logoFixture = path.join(__dirname, '../../fixtures/logo-12x12.png');
@@ -128,5 +129,78 @@ test.describe('Journey: branded document', () => {
     await page.getByRole('button', { name: 'Remove logo preview' }).click();
     await page.waitForTimeout(300);
     await expect(app.brandHeader).toBeHidden();
+  });
+
+  test('footer text placement L/C/R updates disclaimer alignment', async ({ page }) => {
+    const app = new AppPage(page);
+    await app.goto();
+    await app.setDisclaimer('Aligned footer line.');
+
+    await app.footerTextAlignSelect.selectOption('center');
+    await page.waitForTimeout(BRANDING_SETTLE_MS);
+    await expect(app.disclaimerFooter).toHaveCSS('text-align', 'center');
+
+    await app.footerTextAlignSelect.selectOption('right');
+    await page.waitForTimeout(BRANDING_SETTLE_MS);
+    await expect(app.disclaimerFooter).toHaveCSS('text-align', 'right');
+
+    await app.footerTextAlignSelect.selectOption('left');
+    await page.waitForTimeout(BRANDING_SETTLE_MS);
+    await expect(app.disclaimerFooter).toHaveCSS('text-align', 'left');
+  });
+
+  test('footer logo scale uses Header-parity (column %, image not stretched to 100%)', async ({
+    page,
+  }) => {
+    const app = new AppPage(page);
+    await app.goto();
+
+    await page.locator('#logo-slot-footer').check();
+    const uploadInput = page.locator('#file-logo');
+    await uploadInput.setInputFiles(logoFixture);
+    await page.getByLabel('Footer logo placement').selectOption('left');
+    await page.getByLabel('Footer logo scale').fill('40');
+    await page.getByLabel('Footer logo scale').dispatchEvent('change');
+    await page.waitForTimeout(BRANDING_SETTLE_MS);
+
+    const footerCol = page.locator('#footer-logo-column');
+    const footerImg = page.locator('#brand-logo-footer-img');
+    await expect(footerCol).toBeVisible();
+
+    const metrics = await footerCol.evaluate((col) => {
+      const img = col.querySelector('img');
+      return {
+        colMax: (col as HTMLElement).style.maxWidth,
+        imgWidth: img ? (img as HTMLElement).style.width : '',
+      };
+    });
+    expect(metrics.colMax).toBe('40%');
+    expect(metrics.imgWidth).toBe('auto');
+    await expect(footerImg).toHaveCSS('max-width', '100%');
+  });
+
+  test('page number control injects @page margin-box CSS; paper width tracks A4', async ({
+    page,
+  }) => {
+    const app = new AppPage(page);
+    await app.goto();
+
+    await app.footerPageNumSelect.selectOption('right');
+    await page.waitForTimeout(200);
+    const styleRight = await page.locator('#m2pdf-print-page').textContent();
+    expect(styleRight).toMatch(/@bottom-right\s*\{[^}]*counter\(page\)/s);
+    expect(styleRight).toMatch(/@bottom-center\s*\{\s*content:\s*none/s);
+
+    await app.footerPageNumSelect.selectOption('off');
+    await page.waitForTimeout(200);
+    const styleOff = await page.locator('#m2pdf-print-page').textContent();
+    expect(styleOff).not.toMatch(/counter\(page\)/);
+
+    await app.pageGuidePaper.selectOption('a4');
+    await page.waitForTimeout(200);
+    const paperW = await app.printRoot.evaluate((root) =>
+      getComputedStyle(root).getPropertyValue('--m2pdf-print-paper-width').trim(),
+    );
+    expect(paperW).toBe('210mm');
   });
 });
