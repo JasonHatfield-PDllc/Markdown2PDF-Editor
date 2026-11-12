@@ -12,6 +12,79 @@ import { clearPreviewFindHighlights, countPreviewMatches, findInPreview } from '
 
 /** @typedef {'editor' | 'preview' | 'both'} FindScope */
 
+/**
+ * Source highlight policy (see docs/DESKTOP-EVALUATION-2026-11-12.md).
+ * - `active-only`: one mark on the current match (stable, fast)
+ * - `all`: every match up to overlay cap (heavy on large docs)
+ * - `off`: native selection only
+ * @type {'active-only' | 'all' | 'off'}
+ */
+const SOURCE_FIND_PAINT_MODE = 'active-only';
+
+/**
+ * @param {HTMLTextAreaElement | null | undefined} ta
+ * @param {string} q
+ * @param {boolean} matchCase
+ * @param {number} activeStart
+ */
+function paintSourceFind(ta, q, matchCase, activeStart, opts = {}) {
+  if (!ta || !q) return;
+  if (SOURCE_FIND_PAINT_MODE === 'off' || activeStart < 0) {
+    clearEditorFindHighlights(ta);
+    return;
+  }
+  if (opts.commit !== false) {
+    lastCommittedFindStart = activeStart;
+    lastCommittedFindQuery = q;
+    lastMatchCase = matchCase;
+  }
+  if (SOURCE_FIND_PAINT_MODE === 'active-only') {
+    paintEditorFindHighlights(ta, q, matchCase, activeStart, {
+      matchStarts: [activeStart],
+      maxMatches: 1,
+    });
+    return;
+  }
+  paintEditorFindHighlights(ta, q, matchCase, activeStart);
+}
+
+function clearCommittedFindAnchor() {
+  lastCommittedFindStart = -1;
+  lastCommittedFindQuery = '';
+}
+
+/**
+ * @param {HTMLTextAreaElement | null | undefined} ta
+ * @param {string} q
+ * @param {boolean} matchCase
+ * @param {number} activeStart
+ * @returns {string}
+ */
+function editorMatchStatus(ta, q, matchCase, activeStart) {
+  if (!ta || !q || activeStart < 0) return '';
+  const starts = listEditorMatchStarts(ta, q, matchCase);
+  if (!starts.length) return '';
+  const idx = starts.indexOf(activeStart);
+  const n = idx >= 0 ? idx + 1 : 1;
+  return `Match ${n} of ${starts.length}`;
+}
+
+/** @type {string} */
+const FIND_IDLE_HINT = 'Type a term, then Find or Enter (F3 for next match).';
+
+/** False = focus Source so native selection shows the match (Notepad / VS Code pattern). */
+function keepFindBarFocusAfterMatch() {
+  return false;
+}
+
+function syncFindBarOpenClass() {
+  const fb = document.getElementById('find-bar');
+  const rb = document.getElementById('replace-bar');
+  const open =
+    (fb && !fb.classList.contains('hidden')) || (rb && !rb.classList.contains('hidden'));
+  document.body.classList.toggle('m2pdf-find-bar-open', Boolean(open));
+}
+
 /** @type {string} */
 let lastQuery = '';
 
@@ -20,6 +93,11 @@ let lastMatchCase = false;
 
 /** @type {FindScope} */
 let lastSearchScope = 'editor';
+
+/** Last match index committed by Find / F3 (not caret heuristics while typing). */
+let lastCommittedFindStart = -1;
+/** @type {string} */
+let lastCommittedFindQuery = '';
 
 /** Index for preview-only navigation. */
 let previewMatchIndex = -1;
@@ -66,10 +144,29 @@ function selectRange(ta, start, end, opts = {}) {
     prev.focus({ preventScroll: true });
   }
   requestAnimationFrame(() => {
-    ta.setSelectionRange(start, end);
     scrollTextareaToOffset(ta, start);
     syncEditorFindScroll(ta);
   });
+}
+
+/**
+ * @param {HTMLTextAreaElement} ta
+ * @param {string} q
+ * @param {boolean} matchCase
+ * @returns {number}
+ */
+function resolveEditorActiveMatchStart(ta, q, matchCase) {
+  const starts = listEditorMatchStarts(ta, q, matchCase);
+  if (!starts.length) return -1;
+  const { selectionStart, selectionEnd } = ta;
+  if (selectionEnd > selectionStart) {
+    const inSel = starts.find((s) => s >= selectionStart && s + q.length <= selectionEnd);
+    if (inSel !== undefined) return inSel;
+  }
+  const atCaret = starts.find((s) => selectionStart >= s && selectionStart <= s + q.length);
+  if (atCaret !== undefined) return atCaret;
+  const after = starts.find((s) => s >= selectionStart);
+  return after ?? starts[starts.length - 1];
 }
 
 /**
@@ -112,8 +209,11 @@ export function findInEditor(ta, query, opts = {}) {
   lastMatchCase = matchCase;
   selectRange(ta, idx, idx + q.length, { keepFocus });
   if (opts.paint !== false) {
-    paintEditorFindHighlights(ta, q, matchCase, idx);
-    scrollTextareaToOffset(ta, idx);
+    paintSourceFind(ta, q, matchCase, idx);
+    requestAnimationFrame(() => {
+      scrollTextareaToOffset(ta, idx);
+      syncEditorFindScroll(ta);
+    });
   }
   return true;
 }
@@ -203,6 +303,7 @@ export function getLastFindState() {
  *   getPreviewRoot?: () => HTMLElement | null,
  *   onPreviewFindResult?: (info: { query: string, matchCount: number, activeIndex: number }) => void,
  *   getDefaultSearchTarget?: () => 'editor' | 'preview',
+ *   sourceFindOnly?: boolean,
  * }} api
  */
 export function initFindReplaceUi(api) {
@@ -227,12 +328,21 @@ export function initFindReplaceUi(api) {
   const replaceScope = /** @type {HTMLSelectElement} */ (document.getElementById('replace-scope'));
   const replaceStatus = document.getElementById('replace-status');
 
+  const sourceFindOnly = Boolean(api.sourceFindOnly);
+  if (sourceFindOnly) {
+    document.body.classList.add('m2pdf-source-find-only');
+    for (const sel of [findScope, replaceScope]) {
+      if (sel) sel.value = 'editor';
+    }
+  }
+
   const isFindOpen = () => !findBar.classList.contains('hidden');
   const isReplaceOpen = () => !replaceBar.classList.contains('hidden');
   const isAnyFindUiOpen = () => isFindOpen() || isReplaceOpen;
 
   /** @returns {FindScope} */
   function readScopeFromFindUi() {
+    if (sourceFindOnly) return 'editor';
     const v = findScope?.value;
     if (v === 'preview' || v === 'both') return v;
     return 'editor';
@@ -240,6 +350,7 @@ export function initFindReplaceUi(api) {
 
   /** @returns {FindScope} */
   function readScopeFromReplaceUi() {
+    if (sourceFindOnly) return 'editor';
     const v = replaceScope?.value;
     if (v === 'preview' || v === 'both') return v;
     return 'editor';
@@ -286,12 +397,16 @@ export function initFindReplaceUi(api) {
 
   function closeFindBar() {
     findBar.classList.add('hidden');
+    syncFindBarOpenClass();
+    clearCommittedFindAnchor();
     clearEditorFindHighlights(api.getTextarea());
     if (!isReplaceOpen()) clearPreviewFindHighlights();
   }
 
   function closeReplaceBar() {
     replaceBar.classList.add('hidden');
+    syncFindBarOpenClass();
+    clearCommittedFindAnchor();
     clearEditorFindHighlights(api.getTextarea());
     if (!isFindOpen()) clearPreviewFindHighlights();
   }
@@ -308,7 +423,7 @@ export function initFindReplaceUi(api) {
     const root = api.getPreviewRoot?.();
 
     if (scope === 'editor' || scope === 'both') {
-      if (ta && q) paintEditorFindHighlights(ta, q, matchCase, editorActive);
+      if (ta && q) paintSourceFind(ta, q, matchCase, editorActive);
       else clearEditorFindHighlights(ta);
     } else {
       clearEditorFindHighlights(ta);
@@ -365,8 +480,8 @@ export function initFindReplaceUi(api) {
 
     if (bothFlatIndex < editorStarts.length) {
       const start = editorStarts[bothFlatIndex];
-      selectRange(ta, start, start + q.length, { keepFocus: isAnyFindUiOpen() });
-      paintEditorFindHighlights(ta, q, matchCase, start);
+      selectRange(ta, start, start + q.length, { keepFocus: keepFindBarFocusAfterMatch() });
+      paintSourceFind(ta, q, matchCase, start);
       if (root && previewCount) {
         findInPreview(root, q, { matchCase, matchIndex: 0 });
       } else {
@@ -376,7 +491,7 @@ export function initFindReplaceUi(api) {
       const pIdx = bothFlatIndex - editorStarts.length;
       previewMatchIndex = pIdx;
       if (editorStarts.length) {
-        paintEditorFindHighlights(ta, q, matchCase, editorStarts[0]);
+        paintSourceFind(ta, q, matchCase, editorStarts[0]);
       } else {
         clearEditorFindHighlights(ta);
       }
@@ -392,7 +507,8 @@ export function initFindReplaceUi(api) {
    * @param {FindScope} scope
    */
   function runFindOnScope(q, matchCase, reverse, scope) {
-    lastSearchScope = scope;
+    const effectiveScope = sourceFindOnly ? 'editor' : scope;
+    lastSearchScope = effectiveScope;
     lastQuery = q;
     lastMatchCase = matchCase;
 
@@ -402,13 +518,13 @@ export function initFindReplaceUi(api) {
       return false;
     }
 
-    if (scope === 'both') {
+    if (effectiveScope === 'both') {
       return runBothModeFind(q, matchCase, reverse);
     }
 
     bothFlatIndex = -1;
 
-    if (scope === 'preview') {
+    if (effectiveScope === 'preview') {
       const root = api.getPreviewRoot?.();
       if (!root) return false;
       clearEditorFindHighlights(api.getTextarea());
@@ -436,8 +552,69 @@ export function initFindReplaceUi(api) {
     return findInEditor(ta, q, {
       matchCase,
       reverse,
-      keepFocus: isAnyFindUiOpen(),
+      keepFocus: keepFindBarFocusAfterMatch(),
     });
+  }
+
+  /**
+   * @param {HTMLTextAreaElement} ta
+   * @param {string} q
+   * @param {boolean} matchCase
+   */
+  function refreshEditorFindActive(ta, q, matchCase) {
+    if (!q) {
+      clearEditorFindHighlights(ta);
+      return;
+    }
+    const findHasFocus =
+      document.activeElement === findInput || document.activeElement === replaceFindInput;
+    if (findHasFocus) {
+      /* Typing a query — do not measure/paint until Find or F3. */
+      return;
+    }
+    if (
+      lastCommittedFindStart >= 0 &&
+      lastCommittedFindQuery === q &&
+      lastMatchCase === matchCase
+    ) {
+      paintSourceFind(ta, q, matchCase, lastCommittedFindStart, { commit: false });
+      syncEditorFindScroll(ta);
+      return;
+    }
+    const active = resolveEditorActiveMatchStart(ta, q, matchCase);
+    if (active < 0) clearEditorFindHighlights(ta);
+    else paintSourceFind(ta, q, matchCase, active);
+  }
+
+  /** Reposition highlight after Source edit without jumping to another match. */
+  function onSourceEditWhileFindOpen() {
+    const ta = api.getTextarea();
+    if (!ta || !isAnyFindUiOpen()) return;
+    const q = isFindOpen()
+      ? (findInput?.value ?? '')
+      : (replaceFindInput?.value ?? '');
+    const matchCase = isFindOpen()
+      ? Boolean(findMatchCase?.checked)
+      : Boolean(replaceMatchCase?.checked);
+    if (
+      !q ||
+      q !== lastCommittedFindQuery ||
+      lastCommittedFindStart < 0 ||
+      matchCase !== lastMatchCase
+    ) {
+      return;
+    }
+    const hay = matchCase ? ta.value : ta.value.toLowerCase();
+    const needle = matchCase ? q : q.toLowerCase();
+    const slice = hay.slice(
+      lastCommittedFindStart,
+      lastCommittedFindStart + needle.length,
+    );
+    if (slice !== needle) {
+      return;
+    }
+    paintSourceFind(ta, q, matchCase, lastCommittedFindStart, { commit: false });
+    syncEditorFindScroll(ta);
   }
 
   function refreshFindHighlightsFromDialog() {
@@ -449,12 +626,17 @@ export function initFindReplaceUi(api) {
       ? Boolean(findMatchCase?.checked)
       : Boolean(replaceMatchCase?.checked);
 
-    previewMatchIndex = 0;
-    bothFlatIndex = 0;
-
     if (!q) {
       clearEditorFindHighlights(api.getTextarea());
       clearPreviewFindHighlights();
+      return;
+    }
+
+    if (sourceFindOnly || scope === 'editor') {
+      clearPreviewFindHighlights();
+      const ta = api.getTextarea();
+      if (!ta) return;
+      refreshEditorFindActive(ta, q, matchCase);
       return;
     }
 
@@ -479,15 +661,6 @@ export function initFindReplaceUi(api) {
       return;
     }
 
-    clearPreviewFindHighlights();
-    const ta = api.getTextarea();
-    if (!ta) return;
-    findInEditor(ta, q, {
-      matchCase,
-      reverse: false,
-      fromSelection: false,
-      keepFocus: true,
-    });
   }
 
   function openFind() {
@@ -495,11 +668,16 @@ export function initFindReplaceUi(api) {
     syncFromLast(true);
     previewMatchIndex = -1;
     bothFlatIndex = -1;
-    const pane = api.getDefaultSearchTarget?.() ?? 'editor';
-    if (lastSearchScope === 'editor' && pane === 'preview') {
-      setScopeOnBothSelects('preview');
-    } else if (lastSearchScope === 'editor') {
-      setScopeOnBothSelects(defaultScopeFromPane(pane));
+    if (sourceFindOnly) {
+      setScopeOnBothSelects('editor');
+      lastSearchScope = 'editor';
+    } else {
+      const pane = api.getDefaultSearchTarget?.() ?? 'editor';
+      if (lastSearchScope === 'editor' && pane === 'preview') {
+        setScopeOnBothSelects('preview');
+      } else if (lastSearchScope === 'editor') {
+        setScopeOnBothSelects(defaultScopeFromPane(pane));
+      }
     }
     const ta = api.getTextarea();
     const sel = ta?.value.slice(ta.selectionStart, ta.selectionEnd) ?? '';
@@ -507,8 +685,9 @@ export function initFindReplaceUi(api) {
     if (sel && !sel.includes('\n') && findInput && (scope === 'editor' || scope === 'both')) {
       findInput.value = sel;
     }
-    setStatus(findStatus, '');
+    setStatus(findStatus, sourceFindOnly ? FIND_IDLE_HINT : '', false);
     findBar.classList.remove('hidden');
+    syncFindBarOpenClass();
     findInput?.focus();
     findInput?.select();
     refreshFindHighlightsFromDialog();
@@ -519,14 +698,40 @@ export function initFindReplaceUi(api) {
     syncFromLast(false);
     previewMatchIndex = -1;
     bothFlatIndex = -1;
+    if (sourceFindOnly) {
+      setScopeOnBothSelects('editor');
+      lastSearchScope = 'editor';
+    }
     const ta = api.getTextarea();
     const sel = ta?.value.slice(ta.selectionStart, ta.selectionEnd) ?? '';
     if (sel && !sel.includes('\n') && replaceFindInput) replaceFindInput.value = sel;
     setStatus(replaceStatus, '');
     replaceBar.classList.remove('hidden');
+    syncFindBarOpenClass();
     replaceFindInput?.focus();
     replaceFindInput?.select();
     refreshFindHighlightsFromDialog();
+  }
+
+  /**
+   * @param {boolean} ok
+   * @param {string} q
+   * @param {boolean} matchCase
+   */
+  function reportSourceFindToUi(ok, q, matchCase) {
+    const ta = api.getTextarea();
+    const idx = ta?.selectionStart ?? -1;
+    if (isFindOpen() && findStatus) {
+      setStatus(
+        findStatus,
+        ok ? editorMatchStatus(ta, q, matchCase, idx) || FIND_IDLE_HINT : `Cannot find "${q}"`,
+        !ok,
+      );
+    }
+    if (ok && ta && q && idx >= 0 && (sourceFindOnly || resolveScope() === 'editor')) {
+      paintSourceFind(ta, q, matchCase, idx);
+      scrollTextareaToOffset(ta, idx);
+    }
   }
 
   function runFind(reverse) {
@@ -545,7 +750,13 @@ export function initFindReplaceUi(api) {
       bothFlatIndex = -1;
       if (scope === 'editor' || scope === 'both') clearEditorFindHighlights(api.getTextarea());
     }
-    setStatus(findStatus, ok ? '' : `Cannot find "${q}"`, !ok);
+    if (scope === 'editor' || scope === 'both' || sourceFindOnly) {
+      reportSourceFindToUi(ok, q, matchCase);
+    } else if (!ok) {
+      setStatus(findStatus, `Cannot find "${q}"`, true);
+    } else {
+      setStatus(findStatus, '', false);
+    }
   }
 
   function runReplaceFind(reverse) {
@@ -569,10 +780,20 @@ export function initFindReplaceUi(api) {
     }
     const ta = api.getTextarea();
     if (!ta) return;
-    const ok = findInEditor(ta, q, { matchCase, reverse, keepFocus: true });
-    setStatus(replaceStatus, ok ? '' : `Cannot find "${q}"`, !ok);
+    const ok = findInEditor(ta, q, { matchCase, reverse, keepFocus: keepFindBarFocusAfterMatch() });
+    const idx = ta.selectionStart ?? -1;
+    setStatus(
+      replaceStatus,
+      ok ? editorMatchStatus(ta, q, matchCase, idx) : `Cannot find "${q}"`,
+      !ok,
+    );
   }
 
+  document.getElementById('find-go')?.addEventListener('click', () => {
+    bothFlatIndex = -1;
+    previewMatchIndex = -1;
+    runFind(false);
+  });
   document.getElementById('find-next')?.addEventListener('click', () => runFind(false));
   document.getElementById('find-prev')?.addEventListener('click', () => runFind(true));
   document.getElementById('find-close')?.addEventListener('click', () => closeFindBar());
@@ -608,8 +829,12 @@ export function initFindReplaceUi(api) {
   });
   document.getElementById('replace-close')?.addEventListener('click', () => closeReplaceBar());
 
-  findInput?.addEventListener('input', () => refreshFindHighlightsFromDialog());
-  replaceFindInput?.addEventListener('input', () => refreshFindHighlightsFromDialog());
+  findInput?.addEventListener('input', () => {
+    if (!(findInput?.value ?? '').trim()) refreshFindHighlightsFromDialog();
+  });
+  replaceFindInput?.addEventListener('input', () => {
+    if (!(replaceFindInput?.value ?? '').trim()) refreshFindHighlightsFromDialog();
+  });
   findMatchCase?.addEventListener('change', () => refreshFindHighlightsFromDialog());
   replaceMatchCase?.addEventListener('change', () => refreshFindHighlightsFromDialog());
   findScope?.addEventListener('change', () => {
@@ -623,10 +848,6 @@ export function initFindReplaceUi(api) {
     bothFlatIndex = -1;
     if (findScope) findScope.value = replaceScope.value;
     refreshFindHighlightsFromDialog();
-  });
-
-  api.getTextarea()?.addEventListener('input', () => {
-    if (isAnyFindUiOpen()) refreshFindHighlightsFromDialog();
   });
 
   findInput?.addEventListener('keydown', (e) => {
@@ -668,8 +889,10 @@ export function initFindReplaceUi(api) {
       if (!ok) {
         previewMatchIndex = -1;
         bothFlatIndex = -1;
+        if (isFindOpen()) setStatus(findStatus, `Cannot find "${q}"`, true);
+      } else if (s === 'editor' || sourceFindOnly) {
+        reportSourceFindToUi(true, q, matchCase);
       }
-      if (!ok && isFindOpen()) setStatus(findStatus, `Cannot find "${q}"`, true);
     },
     findPrevious() {
       const { query, matchCase, scope } = getLastFindState();
@@ -685,11 +908,22 @@ export function initFindReplaceUi(api) {
       if (!ok) {
         previewMatchIndex = -1;
         bothFlatIndex = -1;
+        if (isFindOpen()) setStatus(findStatus, `Cannot find "${q}"`, true);
+      } else if (s === 'editor' || sourceFindOnly) {
+        reportSourceFindToUi(true, q, matchCase);
       }
-      if (!ok && isFindOpen()) setStatus(findStatus, `Cannot find "${q}"`, true);
     },
     clearPreviewHighlights: clearPreviewFindHighlights,
     clearEditorHighlights: () => clearEditorFindHighlights(api.getTextarea()),
     refreshOpenFind: () => refreshFindHighlightsFromDialog(),
+    isFindUiOpen: () => isAnyFindUiOpen(),
+    onSourceInput() {
+      if (isAnyFindUiOpen()) onSourceEditWhileFindOpen();
+      else {
+        clearCommittedFindAnchor();
+        clearEditorFindHighlights(api.getTextarea());
+        clearPreviewFindHighlights();
+      }
+    },
   };
 }

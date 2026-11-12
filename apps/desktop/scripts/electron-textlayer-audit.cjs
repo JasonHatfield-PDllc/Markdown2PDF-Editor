@@ -125,6 +125,19 @@ async function main() {
       });
       const withFont = sample.filter((s) => s.fontSize && s.fontSize !== '0px' && s.fontHeightVar);
       const scaled = sample.filter((s) => s.transform && s.transform !== 'none');
+      const endCount = layer.querySelectorAll(':scope > .endOfContent').length;
+      const titleSpan = spans.find((s) => (s.textContent || '').includes('Role & Purpose'));
+      const bodySpan = spans.find((s) => (s.textContent || '').includes('doctoral'));
+      let titleOverlapsBody = false;
+      let overlapDetail = '';
+      if (titleSpan && bodySpan) {
+        const tr = titleSpan.getBoundingClientRect();
+        const br = bodySpan.getBoundingClientRect();
+        if (tr.bottom > br.top + 4) {
+          titleOverlapsBody = true;
+          overlapDetail = 'title bottom ' + tr.bottom.toFixed(1) + ' > body top ' + br.top.toFixed(1);
+        }
+      }
       return {
         ok: true,
         spanCount: spans.length,
@@ -134,6 +147,9 @@ async function main() {
         withFontCount: withFont.length,
         scaledCount: scaled.length,
         sample,
+        endCount,
+        titleOverlapsBody,
+        overlapDetail,
         layerWidth: layer.style.width || getComputedStyle(layer).width,
         layerHeight: layer.style.height || getComputedStyle(layer).height,
         layerHTML: layer.innerHTML.slice(0, 280),
@@ -164,6 +180,12 @@ async function main() {
       });
       if (badSizes.length) {
         failures.push(`implausible font-size on spans: ${JSON.stringify(badSizes.slice(0, 3))}`);
+      }
+      if (!(Number(report.endCount) >= 1)) {
+        failures.push('missing .endOfContent on text layer');
+      }
+      if (report.titleOverlapsBody) {
+        failures.push(`title span overlaps body hit box (${report.overlapDetail})`);
       }
     }
 

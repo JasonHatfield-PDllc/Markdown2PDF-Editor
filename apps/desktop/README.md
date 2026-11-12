@@ -7,7 +7,8 @@ Electron shell for the downloadable Markdown → PDF Editor.
 - **Tabs** — multiple Markdown documents in one window
 - **File menu** — New, Open, Open Recent, Close, Save, Save As, Export PDF, Exit
 - **`.md` association** — double-click opens or focuses a tab (single instance)
-- **Find / Replace** — Edit menu (Ctrl+F / F3 / Shift+F3 / Ctrl+H); editor + Prefer B PDF preview text layer
+- **Find / Replace** — Edit menu (Ctrl+F / F3 / Shift+F3 / Ctrl+H); **Source only** in Prefer B (no preview search); Find bar button + Enter
+- **Spell check** — OS dictionary on the Markdown source (red squiggles; right-click suggestions). Find/Replace fields stay off.
 - **Right-click** — Cut / Copy / Paste / Select All in text fields (also Copy on selected preview text)
 - **Prefer B preview** — live View uses the same Chromium `printToPDF` as Export (pdf.js canvas + text layer)
 - Branding (logos, title, disclaimer) is **global** across tabs
@@ -32,7 +33,7 @@ npm ci
 npm run pack:desktop
 ```
 
-Output: `apps/desktop/release/Markdown2PDF-0.1.10-Setup.exe`
+Output: `apps/desktop/release/Markdown2PDF-0.1.12-Setup.exe`
 
 Packaging under OneDrive can fail (missing `app-builder` binaries / sync conflicts). Prefer this path or CI.
 

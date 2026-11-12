@@ -18,8 +18,10 @@
     "test:pdf-audit": "playwright test -c playwright.pdf-audit.config.ts",
     "test:pdf-audit:electron": "node apps/desktop/scripts/run-electron-pdf-audit.cjs",
     "test:pdf-audit:textlayer": "node apps/desktop/scripts/run-electron-textlayer-audit.cjs",
-    "test:agent": "npm run test:e2e && npm run test:pdf-audit && npm run test:pdf-audit:electron && npm run test:pdf-audit:textlayer",
-    "test:prefer-b": "npm run test:pdf-audit:electron && npm run test:pdf-audit:textlayer",
+    "test:desktop:find-highlights": "node apps/desktop/scripts/run-electron-find-highlight-audit.cjs",
+    "test:desktop:find-typing": "node apps/desktop/scripts/run-electron-find-typing-audit.cjs",
+    "test:agent": "npm run test:e2e && npm run test:pdf-audit && npm run test:pdf-audit:electron && npm run test:pdf-audit:textlayer && npm run test:desktop:find-highlights && npm run test:desktop:find-typing",
+    "test:prefer-b": "npm run test:pdf-audit:electron && npm run test:pdf-audit:textlayer && npm run test:desktop:find-highlights && npm run test:desktop:find-typing",
     "dev:desktop": "npm run dev -w markdown2pdf-desktop",
     "build:desktop": "npm run build -w markdown2pdf-desktop",
     "pack:desktop": "npm run pack -w markdown2pdf-desktop"

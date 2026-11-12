@@ -132,6 +132,21 @@ dialog.m2pdf-dlg:focus {
   background: #f1f5f9;
 }
 
+.m2pdf-find-bar-btn.m2pdf-find-bar-primary {
+  font-weight: 600;
+  background: #e2e8f0;
+}
+
+body.m2pdf-source-find-only .m2pdf-find-bar-select,
+body.m2pdf-source-find-only #find-scope,
+body.m2pdf-source-find-only #replace-scope {
+  display: none;
+}
+
+body.m2pdf-source-find-only .m2pdf-find-bar-sep:has(+ .m2pdf-find-bar-select) {
+  display: none;
+}
+
 .m2pdf-find-bar-sep {
   width: 1px;
   height: 1.25rem;
@@ -171,6 +186,15 @@ dialog.m2pdf-dlg:focus {
   white-space: nowrap;
 }
 
+.m2pdf-find-source-hint {
+  display: none;
+  flex: 1 1 100%;
+}
+
+body.m2pdf-source-find-only .m2pdf-find-source-hint {
+  display: block;
+}
+
 .m2pdf-find-bar-status {
   flex: 1 1 100%;
   min-height: 0.85rem;
@@ -178,30 +202,41 @@ dialog.m2pdf-dlg:focus {
   color: #64748b;
 }
 
-#textarea-md.m2pdf-find-overlay-active {
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  caret-color: #0f172a;
+/*
+ * Find marks sit on the backdrop *behind* the textarea; the textarea goes transparent
+ * while highlights are on so rects show through (see #md-editor-stack bg).
+ */
+#md-editor-stack {
+  background-color: #fff;
+}
+
+#textarea-md.m2pdf-find-highlights-on {
   background-color: transparent;
 }
 
-#textarea-md-backdrop {
-  color: #0f172a;
+body.m2pdf-find-bar-open #textarea-md::selection {
+  background-color: rgb(255 136 0 / 0.55);
+  color: inherit;
 }
 
-#textarea-md-backdrop mark.m2pdf-find-mark {
-  background: #ffff00;
-  color: #0f172a;
-  padding: 0;
-  border-radius: 0;
+#textarea-md-backdrop.opacity-100 {
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
 }
 
-#textarea-md-backdrop mark.m2pdf-find-mark-active {
-  background: #ff9632;
-  color: #0f172a;
-  padding: 0;
-  border-radius: 0;
-  outline: 1px solid #e17100;
+#textarea-md-backdrop-inner .m2pdf-find-rect {
+  position: absolute;
+  box-sizing: border-box;
+  background: rgba(255, 255, 0, 0.45);
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+#textarea-md-backdrop-inner .m2pdf-find-rect-active {
+  background: rgba(255, 136, 0, 0.55);
+  outline: 2px solid #c2410c;
+  z-index: 1;
 }
 
 ::highlight(m2pdf-find) {
@@ -249,6 +284,9 @@ body.m2pdf-document-preview #print-root {
   display: flex;
   flex-direction: column;
   background: #525659;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
 }
 
 .m2pdf-chromium-pdf-status {
@@ -304,6 +342,7 @@ body.m2pdf-document-preview #print-root {
   width: auto;
   max-width: none;
   height: auto;
+  pointer-events: none;
 }
 
 /*
@@ -326,6 +365,10 @@ body.m2pdf-document-preview #print-root {
   caret-color: transparent;
   z-index: 2;
   outline: none;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
   --min-font-size: 1;
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
   --min-font-size-inv: calc(1 / var(--min-font-size));
@@ -343,10 +386,16 @@ body.m2pdf-document-preview #print-root {
   color: transparent;
   position: absolute;
   white-space: pre;
-  cursor: text;
+  cursor: default;
   transform-origin: 0% 0%;
-  -webkit-user-select: text;
-  user-select: text;
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.m2pdf-pdfjs-page .textLayer span {
+  overflow: clip;
+  line-height: 1;
 }
 
 .m2pdf-pdfjs-page .textLayer > :not(.markedContent),
@@ -363,36 +412,18 @@ body.m2pdf-document-preview #print-root {
   display: contents;
 }
 
-.m2pdf-pdfjs-page .textLayer ::selection {
-  background: rgb(0 100 255 / 0.28);
-  color: transparent;
-}
-
-.m2pdf-pdfjs-page .textLayer ::-moz-selection {
-  background: rgb(0 100 255 / 0.28);
-  color: transparent;
-}
-
-.m2pdf-pdfjs-page .textLayer br::selection,
-.m2pdf-pdfjs-page .textLayer br::-moz-selection {
-  background: transparent;
-}
-
 .m2pdf-pdfjs-page .textLayer .endOfContent {
   display: block;
   position: absolute;
   inset: 100% 0 0;
   z-index: 0;
   cursor: default;
+  pointer-events: none;
   -webkit-user-select: none;
   user-select: none;
   outline: none;
   border: none;
   box-shadow: none;
-}
-
-.m2pdf-pdfjs-page .textLayer.selecting .endOfContent {
-  top: 0;
 }
 
 .m2pdf-pdfjs-page .textLayer span.m2pdf-pdfjs-find-hit {

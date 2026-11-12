@@ -69,10 +69,13 @@ import { initFindReplaceUi } from './findReplace.js';
 import { getSheetSizePx, layoutPrintPreviewSheets, SHEET_GAP_PX } from './printPreviewLayout.js';
 import { computePreviewFromSource, confirmPaperSelection } from './previewEngine.js';
 import {
+  bumpChromiumPdfGeneration,
+  cancelChromiumPdfPreviewSchedule,
   disposeChromiumPdfPreview,
   flushChromiumPdfPreview,
   scheduleChromiumPdfPreview,
   setChromiumPdfStatus,
+  showCachedChromiumPdfPreview,
 } from './chromiumPdfPreview.js';
 import { escapeFooterHtml, escapeHtmlAttr } from './footerHtml.js';
 
@@ -201,9 +204,44 @@ function syncMdSaveButton() {
 /** Skip preview layout during batched startup (footer/logo/page guide). */
 let previewLayoutBatchDepth = 0;
 
+/** @param {import('./session.js').DocumentTab} doc */
+function isDocPreviewCacheFresh(doc) {
+  return Boolean(doc.previewPdfBase64 && doc.previewForText === doc.text);
+}
+
+/** Keep at most this many inactive tab PDF previews in RAM. */
+const MAX_TAB_PREVIEW_CACHES = 5;
+
+function trimPreviewPdfCaches() {
+  let count = session.docs.filter((d) => d.previewPdfBase64).length;
+  if (count <= MAX_TAB_PREVIEW_CACHES) return;
+  for (const d of session.docs) {
+    if (d.id === session.activeId) continue;
+    if (d.previewPdfBase64) {
+      delete d.previewPdfBase64;
+      delete d.previewForText;
+      count -= 1;
+    }
+    if (count <= MAX_TAB_PREVIEW_CACHES) return;
+  }
+}
+
+/** @param {import('./session.js').DocumentTab} doc @param {string} pdfBase64 */
+function rememberDocPreview(doc, pdfBase64) {
+  doc.previewPdfBase64 = pdfBase64;
+  doc.previewForText = doc.text;
+  trimPreviewPdfCaches();
+}
+
+function cancelTransientPreviewWork() {
+  renderMarkdownDebounced.cancel?.();
+  syncChromiumPrintDomDebounced.cancel?.();
+  cancelChromiumPdfPreviewSchedule();
+}
+
 /**
  * Load active document into the editor + preview and refresh tabs.
- * @param {{ skipPreview?: boolean }} [opts]
+ * @param {{ skipPreview?: boolean, tabSwitch?: boolean }} [opts]
  */
 function syncEditorFromActiveDoc(opts = {}) {
   const doc = getActiveDoc();
@@ -211,7 +249,38 @@ function syncEditorFromActiveDoc(opts = {}) {
   el.textareaMd.value = doc.text;
   syncMdSaveButton();
   renderTabs();
-  if (!opts.skipPreview) renderMarkdown();
+  findReplaceApi?.refreshOpenFind?.();
+  if (opts.skipPreview) return;
+  cancelTransientPreviewWork();
+  if (opts.tabSwitch) {
+    bumpChromiumPdfGeneration();
+    requestAnimationFrame(() => {
+      void applyPreviewForTabSwitch(doc);
+    });
+    return;
+  }
+  renderMarkdown();
+}
+
+function rememberActiveDocPreviewFromResult(out) {
+  const doc = getActiveDoc();
+  if (doc && out?.ok && out.pdfBase64) rememberDocPreview(doc, out.pdfBase64);
+}
+
+/** @param {import('./session.js').DocumentTab} doc */
+async function applyPreviewForTabSwitch(doc) {
+  if (USE_CHROMIUM_PDF_PREVIEW && window.desktopAPI?.previewPdf && isDocPreviewCacheFresh(doc)) {
+    await showCachedChromiumPdfPreview(doc.previewPdfBase64);
+  }
+  updateMarkdownPreviewDom();
+  if (!USE_CHROMIUM_PDF_PREVIEW || !window.desktopAPI?.previewPdf) {
+    refreshPrintPreviewLayout();
+    return;
+  }
+  syncChromiumPrintDomForPreview();
+  if (isDocPreviewCacheFresh(doc)) return;
+  const out = await flushChromiumPdfPreview(() => getChromiumPreviewOpts());
+  if (out?.ok && out.pdfBase64) rememberDocPreview(doc, out.pdfBase64);
 }
 
 /**
@@ -296,6 +365,20 @@ function renderTabs() {
   host.appendChild(addTab);
 }
 
+/** Update active tab dirty dot / label without rebuilding the tab strip (typing path). */
+function syncActiveTabDirtyLabel() {
+  const host = el.docTabs;
+  const doc = getActiveDoc();
+  if (!host || !doc) return;
+  const btn = host.querySelector(`button[data-doc-id="${CSS.escape(doc.id)}"]`);
+  if (!btn) {
+    renderTabs();
+    return;
+  }
+  const label = btn.querySelector(':scope > span.truncate');
+  if (label) label.textContent = `${doc.dirty ? '• ' : ''}${doc.name}`;
+}
+
 /**
  * @param {string} id
  */
@@ -304,8 +387,8 @@ function activateDocument(id) {
   if (!session.docs.some((d) => d.id === id)) return;
   flushActiveEditorToSession();
   session.activeId = id;
-  syncEditorFromActiveDoc();
-  persistSession();
+  syncEditorFromActiveDoc({ tabSwitch: true });
+  persistSessionDebounced();
 }
 
 function newDocument() {
@@ -313,7 +396,7 @@ function newDocument() {
   const doc = createDocument({ name: 'Untitled.md', dirty: false });
   session.docs.push(doc);
   session.activeId = doc.id;
-  syncEditorFromActiveDoc();
+  syncEditorFromActiveDoc({ tabSwitch: true });
   persistSession();
 }
 
@@ -337,7 +420,7 @@ async function closeDocument(id) {
     if (choice === 'cancel') return;
     if (choice === 'save') {
       session.activeId = id;
-      syncEditorFromActiveDoc();
+      syncEditorFromActiveDoc({ tabSwitch: true });
       const saved = await saveMdOverwriteOrAs();
       if (!saved) return;
     }
@@ -350,7 +433,7 @@ async function closeDocument(id) {
     session.activeId = session.docs[session.docs.length - 1].id;
   }
   session = ensureSession(session);
-  syncEditorFromActiveDoc();
+  syncEditorFromActiveDoc({ tabSwitch: true });
   persistSession();
 }
 
@@ -376,7 +459,7 @@ function openOrFocusDocument(result) {
       existing.dirty = false;
       session.activeId = existing.id;
       touchRecentFile(path);
-      syncEditorFromActiveDoc();
+      syncEditorFromActiveDoc({ tabSwitch: true });
       persistSession();
       return;
     }
@@ -407,7 +490,7 @@ function openOrFocusDocument(result) {
     session.activeId = doc.id;
   }
   if (path) touchRecentFile(path);
-  syncEditorFromActiveDoc();
+  syncEditorFromActiveDoc({ tabSwitch: true });
   persistSession();
 }
 
@@ -761,15 +844,7 @@ async function flushPreviewPipelineForExport() {
   if (USE_CHROMIUM_PDF_PREVIEW && window.desktopAPI?.previewPdf) {
     const ctx = rebuildPreviewContext();
     const trimmed = (el.textareaMd?.value ?? '').trim();
-    await flushChromiumPdfPreview(() => ({
-      paper,
-      footerRepeat: every ? 'every' : 'last',
-      hasContent: Boolean(trimmed) && !ctx.source.paused,
-      paused: ctx.source.paused,
-      pauseMessage: ctx.source.paused
-        ? `Preview paused (${ctx.source.charCount.toLocaleString()} characters).`
-        : undefined,
-    }));
+    await flushChromiumPdfPreview(() => getChromiumPreviewOpts());
   }
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 }
@@ -1547,7 +1622,56 @@ function rebuildPreviewContext() {
   return lastPreviewContext;
 }
 
-function refreshPrintPreviewLayout() {
+/** Shared opts for Prefer B preview + Export flush. */
+function getChromiumPreviewOpts() {
+  const ctx = rebuildPreviewContext();
+  const trimmed = (el.textareaMd?.value ?? '').trim();
+  const every = readFooterRepeatFromForm() === 'every';
+  return {
+    paper: ctx.paper,
+    footerRepeat: every ? 'every' : 'last',
+    hasContent: Boolean(trimmed) && !ctx.source.paused,
+    paused: ctx.source.paused,
+    pauseMessage: ctx.source.paused
+      ? `Preview paused (${ctx.source.charCount.toLocaleString()} characters). Reduce below ${MAX_MD_INPUT_CHARS.toLocaleString()} to resume.`
+      : undefined,
+  };
+}
+
+/** Off-screen print DOM only (no printToPDF) — safe to run while typing. */
+function syncChromiumPrintDomForPreview() {
+  const ctx = rebuildPreviewContext();
+  const paper = ctx.paper;
+  const every = readFooterRepeatFromForm() === 'every';
+
+  document.body.classList.add('m2pdf-chromium-preview');
+  el.printRoot?.querySelector('#print-pages-stack')?.replaceChildren();
+  applyPrintPaperWidthCss(paper);
+  const { widthPx } = getSheetSizePx(paper);
+  if (el.printRoot) {
+    el.printRoot.style.width = `${widthPx}px`;
+    el.printRoot.style.maxWidth = `${widthPx}px`;
+    el.printRoot.style.padding = '0';
+    el.printRoot.style.margin = '0';
+  }
+  if (el.printFlow) {
+    el.printFlow.style.visibility = 'visible';
+    el.printFlow.style.position = 'static';
+    el.printFlow.style.left = '';
+    el.printFlow.style.pointerEvents = 'auto';
+  }
+  if (el.footerLastPageWrap) {
+    el.footerLastPageWrap.style.display = '';
+  }
+  layoutLastPageFooter();
+  applyFooterPageNumberRow();
+  syncPrintPageMargins(every ? 'every' : 'last');
+}
+
+/**
+ * @param {'source' | 'branding'} [previewKind]
+ */
+function refreshPrintPreviewLayout(previewKind = 'branding') {
   const ctx = rebuildPreviewContext();
   const paper = ctx.paper;
   const every = readFooterRepeatFromForm() === 'every';
@@ -1555,39 +1679,12 @@ function refreshPrintPreviewLayout() {
   const paused = ctx.source.paused;
 
   if (USE_CHROMIUM_PDF_PREVIEW && window.desktopAPI?.previewPdf) {
-    document.body.classList.add('m2pdf-chromium-preview');
-    // Keep #print-flow in the DOM for printToPDF; View shows Chromium PDF instead of custom stack.
-    el.printRoot?.querySelector('#print-pages-stack')?.replaceChildren();
-    applyPrintPaperWidthCss(paper);
-    const { widthPx } = getSheetSizePx(paper);
-    if (el.printRoot) {
-      el.printRoot.style.width = `${widthPx}px`;
-      el.printRoot.style.maxWidth = `${widthPx}px`;
-      el.printRoot.style.padding = '0';
-      el.printRoot.style.margin = '0';
-    }
-    if (el.printFlow) {
-      el.printFlow.style.visibility = 'visible';
-      el.printFlow.style.position = 'static';
-      el.printFlow.style.left = '';
-      el.printFlow.style.pointerEvents = 'auto';
-    }
-    if (el.footerLastPageWrap) {
-      el.footerLastPageWrap.style.display = '';
-    }
-    layoutLastPageFooter();
-    applyFooterPageNumberRow();
-    // Re-measure footer → @page bottom clearance before printToPDF (View = Export).
-    syncPrintPageMargins(every ? 'every' : 'last');
-    scheduleChromiumPdfPreview(() => ({
-      paper,
-      footerRepeat: every ? 'every' : 'last',
-      hasContent: Boolean(trimmed) && !paused,
-      paused,
-      pauseMessage: paused
-        ? `Preview paused (${ctx.source.charCount.toLocaleString()} characters). Reduce below ${MAX_MD_INPUT_CHARS.toLocaleString()} to resume.`
-        : undefined,
-    }));
+    syncChromiumPrintDomForPreview();
+    scheduleChromiumPdfPreview(
+      () => getChromiumPreviewOpts(),
+      previewKind,
+      rememberActiveDocPreviewFromResult,
+    );
     findReplaceApi?.refreshOpenFind?.();
     return;
   }
@@ -1658,15 +1755,21 @@ function refreshPrintPreviewLayout() {
   findReplaceApi?.refreshOpenFind?.();
 }
 
-const refreshPrintPreviewLayoutDebounced = debounce(refreshPrintPreviewLayout, 120);
-
 function debounce(fn, ms) {
   let t = 0;
-  return (...args) => {
+  /** @param {...unknown} args */
+  const wrapped = (...args) => {
     window.clearTimeout(t);
     t = window.setTimeout(() => fn(...args), ms);
   };
+  wrapped.cancel = () => {
+    window.clearTimeout(t);
+    t = 0;
+  };
+  return wrapped;
 }
+
+const syncChromiumPrintDomDebounced = debounce(syncChromiumPrintDomForPreview, 140);
 
 const PRINT_PAGE_STYLE_ID = 'm2pdf-print-page';
 
@@ -1805,7 +1908,7 @@ function persistPageGuide() {
   applyPageGuide();
 }
 
-function renderMarkdown() {
+function updateMarkdownPreviewDom() {
   clearPreviewFindHighlights();
   const raw = el.textareaMd.value;
   if (!raw.trim()) {
@@ -1814,8 +1917,7 @@ function renderMarkdown() {
       '<p class="text-slate-400">Open or paste Markdown to see the preview.</p>';
     delete el.mdPreview.dataset.m2pdfRendered;
     layoutLastPageFooter();
-    refreshPrintPreviewLayout();
-    return;
+    return false;
   }
   if (raw.length > MAX_MD_INPUT_CHARS) {
     setMdInputWarning(
@@ -1824,15 +1926,32 @@ function renderMarkdown() {
     el.mdPreview.innerHTML =
       '<p class="text-amber-700">Preview paused for very large input. Reduce content size to continue live rendering.</p>';
     delete el.mdPreview.dataset.m2pdfRendered;
-    refreshPrintPreviewLayout();
-    return;
+    return false;
   }
   setMdInputWarning('');
   const html = md.render(preprocessMarkdown(raw));
   el.mdPreview.innerHTML = DOMPurify.sanitize(html);
   el.mdPreview.dataset.m2pdfRendered = '1';
   applyPrintFooterBlock();
-  refreshPrintPreviewLayout();
+  return true;
+}
+
+function renderMarkdown() {
+  const ok = updateMarkdownPreviewDom();
+  if (!ok) {
+    refreshPrintPreviewLayout();
+    return;
+  }
+  if (USE_CHROMIUM_PDF_PREVIEW && window.desktopAPI?.previewPdf) {
+    syncChromiumPrintDomDebounced();
+    scheduleChromiumPdfPreview(
+      () => getChromiumPreviewOpts(),
+      'source',
+      rememberActiveDocPreviewFromResult,
+    );
+  } else {
+    refreshPrintPreviewLayout();
+  }
 }
 
 const persistDisclaimer = debounce(() => {
@@ -1841,7 +1960,7 @@ const persistDisclaimer = debounce(() => {
 const persistSessionDebounced = debounce(() => {
   flushActiveEditorToSession();
   persistSession();
-}, 400);
+}, 750);
 const renderMarkdownDebounced = debounce(() => {
   renderMarkdown();
 }, RENDER_DEBOUNCE_MS);
@@ -1925,13 +2044,27 @@ function initFromStorage() {
 }
 
 el.textareaMd.addEventListener('input', () => {
-  clearEditorFindHighlights(el.textareaMd);
-  clearPreviewFindHighlights();
+  findReplaceApi?.onSourceInput?.();
   renderMarkdownDebounced();
   const doc = getActiveDoc();
   if (doc) doc.dirty = true;
-  renderTabs();
+  syncActiveTabDirtyLabel();
   persistSessionDebounced();
+});
+
+/** Leave Source: refresh PDF once (debounced) so Preview catches up without jumping while typing. */
+let sourceBlurPreviewTimer = 0;
+el.textareaMd?.addEventListener('blur', () => {
+  if (!USE_CHROMIUM_PDF_PREVIEW || !window.desktopAPI?.previewPdf) return;
+  window.clearTimeout(sourceBlurPreviewTimer);
+  sourceBlurPreviewTimer = window.setTimeout(() => {
+    sourceBlurPreviewTimer = 0;
+    if (document.activeElement === el.textareaMd) return;
+    syncChromiumPrintDomForPreview();
+    void flushChromiumPdfPreview(() => getChromiumPreviewOpts()).then(
+      rememberActiveDocPreviewFromResult,
+    );
+  }, 150);
 });
 
 el.btnOpenMd?.addEventListener('click', () => {
@@ -2124,7 +2257,7 @@ function initMdToolbar() {
       doc.text = ta.value;
       doc.dirty = true;
     }
-    renderTabs();
+    syncActiveTabDirtyLabel();
     persistSession();
   });
 }
@@ -2177,6 +2310,7 @@ el.mainPreview?.addEventListener('mousedown', () => {
 });
 
 findReplaceApi = initFindReplaceUi({
+  sourceFindOnly: USE_CHROMIUM_PDF_PREVIEW,
   getTextarea: () => el.textareaMd,
   getPreviewRoot: () => {
     if (USE_CHROMIUM_PDF_PREVIEW && document.body.classList.contains('m2pdf-chromium-preview')) {

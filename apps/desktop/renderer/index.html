@@ -247,7 +247,7 @@
                 class="z-[1] h-40 min-h-40 w-full resize-y rounded border border-slate-300 bg-white p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words"
                 placeholder="# Title&#10;&#10;Paste PragmaticSpeak output or open a .md file."
                 aria-describedby="md-input-warning"
-                spellcheck="false"
+                spellcheck="true"
                 wrap="soft"
               ></textarea>
             </div>
@@ -640,6 +640,9 @@
           spellcheck="false"
           aria-label="Find text"
         />
+        <button id="find-go" type="button" class="m2pdf-find-bar-btn m2pdf-find-bar-primary" title="Find (Enter)">
+          Find
+        </button>
         <button id="find-prev" type="button" class="m2pdf-find-bar-btn" title="Find previous">
           ▲
         </button>
@@ -665,6 +668,9 @@
           ×
         </button>
         <span id="find-status" class="m2pdf-find-bar-status" role="status"></span>
+        <span id="find-usage-hint" class="m2pdf-find-bar-hint m2pdf-find-source-hint"
+          >Find or Enter moves the match in Source (orange selection). F3 for next.</span
+        >
       </div>
     </div>
 

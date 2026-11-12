@@ -10,6 +10,8 @@
  *   path: string | null,
  *   name: string,
  *   dirty: boolean,
+ *   previewPdfBase64?: string,
+ *   previewForText?: string,
  * }} DocumentTab
  */
 

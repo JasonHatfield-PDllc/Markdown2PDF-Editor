@@ -318,6 +318,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       devTools: IS_DEV,
+      spellcheck: true,
     },
   });
 

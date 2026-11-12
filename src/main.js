@@ -1004,8 +1004,15 @@ function renderMarkdown() {
     return;
   }
   setMdInputWarning('');
+  const scroller = document.getElementById('main-preview');
+  const savedScrollTop = scroller?.scrollTop ?? 0;
   const html = md.render(preprocessMarkdown(raw));
   el.mdPreview.innerHTML = DOMPurify.sanitize(html);
+  if (scroller) {
+    requestAnimationFrame(() => {
+      scroller.scrollTop = savedScrollTop;
+    });
+  }
 }
 
 function debounce(fn, ms) {

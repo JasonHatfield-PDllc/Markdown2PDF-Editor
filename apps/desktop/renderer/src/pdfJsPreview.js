@@ -7,6 +7,10 @@
  */
 import { getDocument, GlobalWorkerOptions, TextLayer } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
+import {
+  attachPdfTextLayerSelection,
+  detachAllPdfTextLayerSelections,
+} from './textLayerSelection.js';
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -32,6 +36,71 @@ const MAX_PREVIEW_SCALE = 2.5;
  */
 function getPagesRoot() {
   return document.getElementById('pdfjs-pages');
+}
+
+/** Scroll container for the PDF page strip (not #main-preview). */
+function getPreviewScrollEl() {
+  return getPagesRoot();
+}
+
+/**
+ * @typedef {{ scrollTop: number, ratio: number, pageNum: number, anchorY: number }} PreviewScrollAnchor
+ */
+
+/** @returns {PreviewScrollAnchor | null} */
+export function capturePreviewScrollAnchor() {
+  const el = getPreviewScrollEl();
+  if (!el) return null;
+  const max = Math.max(0, el.scrollHeight - el.clientHeight);
+  const scrollTop = el.scrollTop;
+  const ratio = max > 0 ? scrollTop / max : 0;
+  const viewportMid = scrollTop + el.clientHeight / 2;
+  let pageNum = 1;
+  let anchorY = viewportMid;
+  const pages = el.querySelectorAll('.m2pdf-pdfjs-page');
+  for (const p of pages) {
+    const top = p.offsetTop;
+    const bottom = top + p.offsetHeight;
+    if (viewportMid >= top && viewportMid < bottom) {
+      pageNum = Number(/** @type {HTMLElement} */ (p).dataset.pageNumber) || 1;
+      anchorY = viewportMid - top;
+      break;
+    }
+  }
+  return { scrollTop, ratio, pageNum, anchorY };
+}
+
+/**
+ * @param {PreviewScrollAnchor | null} anchor
+ */
+function restorePreviewScrollAnchor(anchor) {
+  const el = getPreviewScrollEl();
+  if (!el || !anchor) return;
+
+  const apply = () => {
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    if (max <= 0) {
+      el.scrollTop = 0;
+      return;
+    }
+    const page = el.querySelector(`.m2pdf-pdfjs-page[data-page-number="${anchor.pageNum}"]`);
+    if (page instanceof HTMLElement) {
+      const target = page.offsetTop + anchor.anchorY - el.clientHeight * 0.35;
+      el.scrollTop = Math.min(max, Math.max(0, target));
+      return;
+    }
+    if (anchor.ratio > 0) {
+      el.scrollTop = Math.min(max, anchor.ratio * max);
+      return;
+    }
+    el.scrollTop = Math.min(max, Math.max(0, anchor.scrollTop));
+  };
+
+  apply();
+  requestAnimationFrame(() => {
+    apply();
+    requestAnimationFrame(apply);
+  });
 }
 
 /**
@@ -66,6 +135,7 @@ export function clearPdfJsPreview() {
     pdfDoc = null;
   }
   clearPdfJsFindHighlights();
+  detachAllPdfTextLayerSelections();
   const root = getPagesRoot();
   if (root) root.replaceChildren();
 }
@@ -86,7 +156,7 @@ function ensureHostResizeObserver() {
       resizeTimer = 0;
       if (!lastPdfBase64) return;
       void renderPdfJsFromBase64(lastPdfBase64, { fitWidth: w });
-    }, 180);
+    }, 320);
   });
   hostResizeObserver.observe(host);
 }
@@ -117,7 +187,7 @@ export async function renderPdfJsFromBase64(pdfBase64, opts = {}) {
     pdfDoc = null;
   }
   clearPdfJsFindHighlights();
-  root.replaceChildren();
+  const scrollAnchor = capturePreviewScrollAnchor();
 
   const binary = atob(pdfBase64);
   const bytes = new Uint8Array(binary.length);
@@ -144,6 +214,9 @@ export async function renderPdfJsFromBase64(pdfBase64, opts = {}) {
   }
   if (hostWidth < 360) hostWidth = 900;
   lastFitWidth = hostWidth;
+
+  /** Build off-DOM first — keep prior pages visible until one atomic swap (avoids scroll jump). */
+  const builtPages = [];
 
   for (let pageNum = 1; pageNum <= doc.numPages; pageNum += 1) {
     if (token !== renderToken) return { ok: false, error: 'stale' };
@@ -177,19 +250,30 @@ export async function renderPdfJsFromBase64(pdfBase64, opts = {}) {
 
     pageWrap.appendChild(canvas);
     pageWrap.appendChild(textLayerDiv);
-    root.appendChild(pageWrap);
 
     await page.render({ canvasContext: ctx, viewport, canvas }).promise;
     if (token !== renderToken) return { ok: false, error: 'stale' };
 
-    const textContent = await page.getTextContent();
+    const textContentSource = page.streamTextContent({
+      includeMarkedContent: true,
+    });
     const textLayer = new TextLayer({
-      textContentSource: textContent,
+      textContentSource,
       container: textLayerDiv,
       viewport,
     });
     await textLayer.render();
+    builtPages.push(pageWrap);
   }
+
+  if (token !== renderToken) return { ok: false, error: 'stale' };
+  detachAllPdfTextLayerSelections();
+  root.replaceChildren(...builtPages);
+  for (const pageWrap of builtPages) {
+    const layer = pageWrap.querySelector('.textLayer');
+    if (layer instanceof HTMLElement) attachPdfTextLayerSelection(layer);
+  }
+  restorePreviewScrollAnchor(scrollAnchor);
 
   return { ok: true, pageCount: doc.numPages };
 }
